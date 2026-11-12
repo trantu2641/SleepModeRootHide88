@@ -1,28 +1,52 @@
+#import <Foundation/Foundation.h>
 #import <UIKit/UIKit.h>
-#import <CoreFoundation/CoreFoundation.h>
 
 #import "SleepManager.h"
-
-static NSString * const kSleepTouchNotification =
-    @"com.trantu.sleepmode.touch";
-
-static void NotifySleepModeTouch(void)
-{
-    CFNotificationCenterPostNotification(
-        CFNotificationCenterGetDarwinNotifyCenter(),
-
-        (__bridge CFStringRef)
-            kSleepTouchNotification,
-
-        NULL,
-        NULL,
-        YES
-    );
-}
 
 #pragma mark - SpringBoard
 
 %group SpringBoardGroup
+
+/*
+ * SBIdleTimerGlobalCoordinator
+ *
+ * SpringBoard sử dụng class này để quản lý
+ * idle timer toàn hệ thống.
+ *
+ * NexusBoard binary mà bạn cung cấp cũng có
+ * selector:
+ *
+ *     resetIdleTimer
+ *
+ * Vì vậy SleepMode sẽ dùng chính điểm này
+ * để biết hệ thống vừa nhận interaction.
+ */
+
+%hook SBIdleTimerGlobalCoordinator
+
+- (void)resetIdleTimer
+{
+    /*
+     * Cho SpringBoard xử lý bình thường trước.
+     */
+    %orig;
+
+    /*
+     * Báo cho SleepManager:
+     *
+     * "Có hoạt động người dùng"
+     *
+     * Không cần biết interaction bắt nguồn
+     * từ Safari, game, Settings hay app nào.
+     */
+    [[SleepManager sharedInstance]
+        userDidInteract];
+}
+
+%end
+
+
+#pragma mark - SpringBoard Startup
 
 %hook SpringBoard
 
@@ -35,6 +59,9 @@ static void NotifySleepModeTouch(void)
         @"[SleepMode] SpringBoard started"
     );
 
+    /*
+     * Khởi động SleepManager.
+     */
     [SleepManager sharedInstance];
 }
 
@@ -42,42 +69,6 @@ static void NotifySleepModeTouch(void)
 
 %end
 
-#pragma mark - Touch Reporter
-
-%group TouchReporterGroup
-
-%hook UIApplication
-
-- (void)sendEvent:(UIEvent *)event
-{
-    %orig;
-
-    if (event.type != UIEventTypeTouches) {
-        return;
-    }
-
-    NSSet *touches =
-        [event allTouches];
-
-    if (touches.count == 0) {
-        return;
-    }
-
-    for (UITouch *touch in touches) {
-
-        if (touch.phase ==
-            UITouchPhaseBegan) {
-
-            NotifySleepModeTouch();
-
-            break;
-        }
-    }
-}
-
-%end
-
-%end
 
 #pragma mark - Constructor
 
@@ -87,18 +78,13 @@ static void NotifySleepModeTouch(void)
         [[NSBundle mainBundle]
             bundleIdentifier];
 
-    if (bundleID == nil) {
-        return;
-    }
-
-    /*
-     * SpringBoard:
-     * chạy SleepManager.
-     */
-
     if ([bundleID
             isEqualToString:
                 @"com.apple.springboard"]) {
+
+        NSLog(
+            @"[SleepMode] Injected into SpringBoard"
+        );
 
         %init(SpringBoardGroup);
 
@@ -106,12 +92,6 @@ static void NotifySleepModeTouch(void)
     }
 
     /*
-     * Tất cả process/app còn lại:
-     * hook UIApplication để phát hiện touch.
-     *
-     * RootHide Bootstrap quyết định
-     * process nào thực tế được inject.
+     * Không làm gì trong các app khác.
      */
-
-    %init(TouchReporterGroup);
 }

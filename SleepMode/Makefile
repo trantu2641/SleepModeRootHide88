@@ -4,7 +4,7 @@ include $(THEOS)/makefiles/common.mk
 
 TWEAK_NAME = SleepMode
 
-SleepMode_FILES = Tweak.xm SleepManager.m
+SleepMode_FILES = Tweak.xm SleepManager.m SleepControlCenter.m
 
 SleepMode_CFLAGS = -fobjc-arc
 

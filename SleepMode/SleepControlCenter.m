@@ -1,32 +1,27 @@
 #import "SleepControlCenter.h"
 #import "SleepManager.h"
 
-#import <Foundation/Foundation.h>
-#import <math.h>
+NSString * const SleepControlCenterStateChangedNotification =
+    @"com.trantu.sleepmode.stateChanged";
 
-NSString * const
-    SleepControlCenterStateChangedNotification =
-        @"com.trantu.sleepmode.stateChanged";
+static NSString * const kSleepModeEnabledKey =
+    @"SleepModeEnabled";
 
-@interface SleepControlCenter ()
-
-@property(nonatomic, strong)
-    SleepManager *sleepManager;
-
-@end
+static NSString * const kSleepModeTimeoutKey =
+    @"SleepModeTimeout";
 
 @implementation SleepControlCenter
 
 + (instancetype)sharedInstance
 {
-    static SleepControlCenter *sharedInstance = nil;
+    static SleepControlCenter *instance = nil;
     static dispatch_once_t onceToken;
 
     dispatch_once(&onceToken, ^{
-        sharedInstance = [[self alloc] init];
+        instance = [[self alloc] init];
     });
 
-    return sharedInstance;
+    return instance;
 }
 
 - (instancetype)init
@@ -34,8 +29,19 @@ NSString * const
     self = [super init];
 
     if (self) {
-        self.sleepManager =
-            [SleepManager sharedInstance];
+
+        NSUserDefaults *defaults =
+            [NSUserDefaults standardUserDefaults];
+
+        if ([defaults objectForKey:kSleepModeEnabledKey] == nil) {
+            [defaults setBool:YES
+                        forKey:kSleepModeEnabledKey];
+        }
+
+        if ([defaults objectForKey:kSleepModeTimeoutKey] == nil) {
+            [defaults setDouble:15.0
+                         forKey:kSleepModeTimeoutKey];
+        }
     }
 
     return self;
@@ -45,35 +51,27 @@ NSString * const
 
 - (BOOL)isEnabled
 {
-    return self.sleepManager.enabled;
+    return [SleepManager sharedInstance].enabled;
 }
 
 - (void)setEnabled:(BOOL)enabled
 {
-    BOOL currentEnabled =
-        self.sleepManager.enabled;
+    [[SleepManager sharedInstance]
+        setEnabled:enabled];
 
-    if (currentEnabled == enabled) {
-        return;
-    }
+    NSUserDefaults *defaults =
+        [NSUserDefaults standardUserDefaults];
 
-    self.sleepManager.enabled = enabled;
+    [defaults setBool:enabled
+               forKey:kSleepModeEnabledKey];
 
-    if (enabled) {
+    [defaults synchronize];
 
-        [self.sleepManager resetTimer];
-        [self.sleepManager start];
-
-    } else {
-
-        [self.sleepManager stop];
-
-    }
-
-    [self postStateChanged];
+    [[NSNotificationCenter defaultCenter]
+        postNotificationName:
+            SleepControlCenterStateChangedNotification
+        object:nil];
 }
-
-#pragma mark - Enable / Disable
 
 - (void)enable
 {
@@ -92,66 +90,44 @@ NSString * const
 
 #pragma mark - Timeout
 
-- (NSTimeInterval)currentTimeout
-{
-    return self.sleepManager.timeout;
-}
-
 - (void)setTimeout:(NSTimeInterval)timeout
 {
-    if (timeout < 0.0) {
-        timeout = 0.0;
+    if (timeout < 1.0) {
+        timeout = 1.0;
     }
 
-    NSTimeInterval currentTimeout =
-        self.sleepManager.timeout;
-
-    if (fabs(currentTimeout - timeout) < 0.001) {
-        return;
+    if (timeout > 86400.0) {
+        timeout = 86400.0;
     }
 
-    self.sleepManager.timeout = timeout;
+    [[SleepManager sharedInstance]
+        setTimeout:timeout];
 
-    /*
-     * Đổi thời gian sẽ tính lại bộ đếm
-     * từ thời điểm hiện tại.
-     */
-    [self.sleepManager resetTimer];
+    NSUserDefaults *defaults =
+        [NSUserDefaults standardUserDefaults];
 
-    [self postStateChanged];
-}
+    [defaults setDouble:timeout
+                 forKey:kSleepModeTimeoutKey];
 
-#pragma mark - Timer
-
-- (void)resetTimer
-{
-    [self.sleepManager resetTimer];
-}
-
-#pragma mark - Notification
-
-- (void)postStateChanged
-{
-    NSDictionary *userInfo = @{
-        @"enabled": @(self.enabled),
-        @"timeout": @(self.currentTimeout)
-    };
+    [defaults synchronize];
 
     [[NSNotificationCenter defaultCenter]
         postNotificationName:
             SleepControlCenterStateChangedNotification
-        object:self
-        userInfo:userInfo];
+        object:nil];
 }
 
-#pragma mark - Description
-
-- (NSString *)description
+- (NSTimeInterval)currentTimeout
 {
-    return [NSString stringWithFormat:
-        @"<SleepControlCenter: enabled=%@ timeout=%.1f>",
-        self.enabled ? @"YES" : @"NO",
-        self.currentTimeout];
+    return [SleepManager sharedInstance].timeout;
+}
+
+#pragma mark - Reset
+
+- (void)resetTimer
+{
+    [[SleepManager sharedInstance]
+        resetTimer];
 }
 
 @end

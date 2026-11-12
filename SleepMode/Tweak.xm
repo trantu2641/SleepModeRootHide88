@@ -3,73 +3,117 @@
 
 #import "SleepManager.h"
 
-#pragma mark - Activity
-
-static void SleepModeRegisterActivity(void)
-{
-    [[SleepManager sharedInstance]
-        userDidInteract];
-}
-
-#pragma mark - Lock State Notifications
-
-static void SleepModeRegisterLockNotifications(void)
-{
-    NSNotificationCenter *center =
-        [NSNotificationCenter defaultCenter];
-
-    /*
-     * Lock notification.
-     */
-    [center addObserverForName:
-                @"SBLockScreenManagerDidLockNotification"
-
-            object:nil
-
-             queue:[NSOperationQueue mainQueue]
-
-        usingBlock:
-        ^(NSNotification *notification) {
-
-            NSLog(
-                @"[SleepMode] System lock detected"
-            );
-
-            [[SleepManager sharedInstance]
-                deviceDidLock];
-        }];
-
-    /*
-     * Unlock notification.
-     */
-    [center addObserverForName:
-                @"SBLockScreenManagerDidUnlockNotification"
-
-            object:nil
-
-             queue:[NSOperationQueue mainQueue]
-
-        usingBlock:
-        ^(NSNotification *notification) {
-
-            NSLog(
-                @"[SleepMode] System unlock detected"
-            );
-
-            [[SleepManager sharedInstance]
-                deviceDidUnlock];
-        }];
-}
-
 #pragma mark - SpringBoard Group
 
 %group SpringBoardGroup
 
 /*
- * SpringBoard idle timer.
+ * SpringBoard là nơi quản lý toàn bộ giao diện hệ thống.
  *
- * Đây vẫn được giữ lại vì nó là một trong
- * các activity signal gần với Auto-Lock.
+ * Vì SleepMode chỉ inject vào SpringBoard nên:
+ *
+ *   Home Screen       -> bắt được
+ *   App đang chạy     -> SpringBoard vẫn nhận lifecycle/event liên quan
+ *   Control Center    -> bắt được
+ *   Lock Screen       -> không chạy timer
+ *   App Library       -> bắt được
+ *
+ * Không cần inject SleepMode vào từng app.
+ */
+
+%hook SpringBoard
+
+- (void)applicationDidFinishLaunching:(id)application
+{
+    %orig;
+
+    NSLog(@"[SleepMode] SpringBoard started");
+
+    /*
+     * Khởi tạo SleepManager.
+     */
+    [SleepManager sharedInstance];
+}
+
+/*
+ * Đây là điểm bắt sự kiện ở tầng SpringBoard.
+ */
+- (void)sendEvent:(UIEvent *)event
+{
+    if (event != nil) {
+
+        UIEventType type = event.type;
+
+        /*
+         * Touch event
+         */
+        if (type == UIEventTypeTouches) {
+
+            NSSet *touches = [event allTouches];
+
+            if (touches.count > 0) {
+
+                BOOL hasRealTouch = NO;
+
+                for (UITouch *touch in touches) {
+
+                    if (touch == nil) {
+                        continue;
+                    }
+
+                    /*
+                     * Chỉ tính những touch thực sự
+                     * đang tương tác với màn hình.
+                     */
+                    UITouchPhase phase =
+                        touch.phase;
+
+                    if (phase == UITouchPhaseBegan ||
+                        phase == UITouchPhaseMoved ||
+                        phase == UITouchPhaseEnded ||
+                        phase == UITouchPhaseStationary) {
+
+                        hasRealTouch = YES;
+                        break;
+                    }
+                }
+
+                if (hasRealTouch) {
+
+                    [[SleepManager sharedInstance]
+                        userDidInteract];
+                }
+            }
+        }
+
+        /*
+         * Một số thao tác phần cứng / hệ thống
+         * có thể đi qua Press event.
+         */
+        else if (type == UIEventTypePresses) {
+
+            NSSet *presses =
+                [event allPresses];
+
+            if (presses.count > 0) {
+
+                [[SleepManager sharedInstance]
+                    userDidInteract];
+            }
+        }
+    }
+
+    %orig;
+}
+
+%end
+
+
+/*
+ * Giữ lại hook này như một lớp dự phòng.
+ *
+ * SpringBoard có thể reset idle timer khi hệ thống
+ * nhận biết hoạt động của người dùng.
  */
 %hook SBIdleTimerGlobalCoordinator
 
@@ -77,33 +121,14 @@ static void SleepModeRegisterLockNotifications(void)
 {
     %orig;
 
-    SleepModeRegisterActivity();
-}
-
-%end
-
-
-/*
- * SpringBoard lifecycle.
- */
-%hook SpringBoard
-
-- (void)applicationDidFinishLaunching:(id)application
-{
-    %orig;
-
-    NSLog(
-        @"[SleepMode] SpringBoard started"
-    );
-
-    [SleepManager sharedInstance];
-
-    SleepModeRegisterLockNotifications();
+    [[SleepManager sharedInstance]
+        userDidInteract];
 }
 
 %end
 
 %end
+
 
 #pragma mark - Constructor
 
@@ -113,25 +138,20 @@ static void SleepModeRegisterLockNotifications(void)
         [[NSBundle mainBundle]
             bundleIdentifier];
 
-    /*
-     * Chỉ chạy trong SpringBoard.
-     *
-     * Không inject vào:
-     *
-     * Safari
-     * YouTube
-     * Facebook
-     * game
-     * v.v.
-     */
     if ([bundleID
             isEqualToString:
                 @"com.apple.springboard"]) {
 
-        NSLog(
-            @"[SleepMode] Injected into SpringBoard"
-        );
+        NSLog(@"[SleepMode] Injected into SpringBoard");
 
         %init(SpringBoardGroup);
+
+        /*
+         * Tạo manager ngay sau khi SpringBoard
+         * được inject.
+         */
+        [SleepManager sharedInstance];
+
+        return;
     }
 }

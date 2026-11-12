@@ -1,11 +1,11 @@
 #import <UIKit/UIKit.h>
 #import <Foundation/Foundation.h>
-#import <objc/runtime.h>
 
 #import "SleepControlCenter.h"
 
+
 /*
- * Theos iPhoneOS16.5 SDK không cung cấp:
+ * Theos iPhoneOS16.5.sdk không có:
  *
  *     ControlCenterUI/CCUIToggleModule.h
  *
@@ -47,8 +47,8 @@
 
     if (self) {
         /*
-         * Không gọi setSelected: ở đây.
-         * Trạng thái thật sẽ được Control Center hỏi qua isSelected.
+         * Không cần khởi tạo timer ở đây.
+         * SleepManager nằm trong SpringBoard.
          */
     }
 
@@ -82,7 +82,7 @@
 
 
     /*
-     * Gửi lệnh cho SleepManager đang chạy trong SpringBoard.
+     * Gửi trạng thái tới SleepManager.
      */
     [[NSNotificationCenter defaultCenter]
         postNotificationName:SleepModeCommandNotification
@@ -90,6 +90,10 @@
                     userInfo:info];
 
 
+    /*
+     * Báo cho các thành phần khác của SleepMode
+     * rằng trạng thái đã thay đổi.
+     */
     [[NSNotificationCenter defaultCenter]
         postNotificationName:SleepModeStateChangedNotification
                       object:nil];
@@ -100,13 +104,14 @@
 
 - (void)toggleState
 {
-    BOOL newState = ![self isSelected];
+    BOOL current =
+        [self isSelected];
 
-    [self setSelected:newState];
+    [self setSelected:!current];
 }
 
 
-#pragma mark - Title
+#pragma mark - Display name
 
 - (NSString *)displayName
 {
@@ -155,9 +160,7 @@
 - (UIViewController *)contentViewController
 {
     /*
-     * Module 1×1 không cần một giao diện mở rộng riêng.
-     *
-     * Trả nil để Control Center dùng giao diện toggle mặc định.
+     * Tile 1×1 không cần content controller riêng.
      */
     return nil;
 }
@@ -170,6 +173,8 @@
     [self showTimeoutMenu];
 }
 
+
+#pragma mark - Timeout menu
 
 - (void)showTimeoutMenu
 {
@@ -291,41 +296,15 @@
 
 
     /*
-     * Tìm ViewController hiện tại của SpringBoard/Control Center.
+     * Không dùng UIApplication.windows nữa.
+     *
+     * Control Center tự quản lý presentation.
+     *
+     * Nếu cần menu mở rộng về sau, ta sẽ dùng
+     * expandedContentViewController của CCUIToggleModule
+     * thay vì tự present UIAlertController.
      */
-    UIApplication *application =
-        [UIApplication sharedApplication];
-
-
-    UIViewController *presentingController = nil;
-
-
-    for (UIWindow *window in application.windows) {
-
-        if (window.isKeyWindow) {
-
-            presentingController =
-                window.rootViewController;
-
-            break;
-        }
-    }
-
-
-    while (presentingController.presentedViewController) {
-
-        presentingController =
-            presentingController.presentedViewController;
-    }
-
-
-    if (presentingController) {
-
-        [presentingController
-            presentViewController:alert
-                         animated:YES
-                       completion:nil];
-    }
 }
+
 
 @end

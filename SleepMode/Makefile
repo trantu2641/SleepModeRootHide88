@@ -1,10 +1,18 @@
+##################################################
+# GLOBAL CONFIGURATION
+##################################################
+
 TARGET := iphone:clang:16.5:16.0
+
+ARCHS = arm64 arm64e
+
+THEOS_PACKAGE_SCHEME = roothide
 
 include $(THEOS)/makefiles/common.mk
 
 
 ##################################################
-# SLEEPMODE TWEAK
+# MAIN TWEAK
 ##################################################
 
 TWEAK_NAME = SleepMode
@@ -43,7 +51,6 @@ SleepModeModule_FILES = \
 
 SleepModeModule_CFLAGS = \
     -fobjc-arc \
-    -Wno-unused-function \
     -Wno-deprecated-declarations
 
 SleepModeModule_FRAMEWORKS = \
@@ -53,8 +60,12 @@ SleepModeModule_FRAMEWORKS = \
 SleepModeModule_INSTALL_PATH = \
     /Library/ControlCenter/Bundles
 
+# ĐƯỜNG DẪN ĐÚNG
+# Makefile nằm trong SleepMode/
+# ControlCenter nằm ngang hàng với SleepMode/
+
 SleepModeModule_BUNDLE_RESOURCE_DIRS = \
-    ControlCenter/SleepModeModule.bundle
+    ../ControlCenter/SleepModeModule.bundle
 
 
 ##################################################
@@ -70,7 +81,6 @@ SleepModeProvider_FILES = \
 
 SleepModeProvider_CFLAGS = \
     -fobjc-arc \
-    -Wno-unused-function \
     -Wno-deprecated-declarations
 
 SleepModeProvider_FRAMEWORKS = \
@@ -80,15 +90,23 @@ SleepModeProvider_FRAMEWORKS = \
 SleepModeProvider_INSTALL_PATH = \
     /Library/ControlCenter/CCSupport_Providers
 
+# ĐƯỜNG DẪN ĐÚNG
+
 SleepModeProvider_BUNDLE_RESOURCE_DIRS = \
-    ControlCenter/SleepModeProvider.bundle
+    ../ControlCenter/SleepModeProvider.bundle
 
 
 ##################################################
-# BUILD
+# BUILD TWEAK
 ##################################################
 
 include $(THEOS_MAKE_PATH)/tweak.mk
+
+
+##################################################
+# BUILD BUNDLES
+##################################################
+
 include $(THEOS_MAKE_PATH)/bundle.mk
 
 
@@ -96,8 +114,4 @@ include $(THEOS_MAKE_PATH)/bundle.mk
 # PACKAGE
 ##################################################
 
-ARCHS = arm64 arm64e
-
 include $(THEOS_MAKE_PATH)/package.mk
-
-THEOS_PACKAGE_SCHEME = roothide

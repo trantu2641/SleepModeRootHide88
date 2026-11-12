@@ -15,18 +15,17 @@ static NSString * const kSleepModeCommandNotification =
 static NSString * const kSleepModeStateChangedNotification =
     @"com.trantu.sleepmode.stateChanged";
 
-@interface SleepModeContentViewController :
-    UIViewController
 
-@end
+#pragma mark - Content View Controller
 
-@interface SleepModeContentViewController ()
+@interface SleepModeContentViewController : UIViewController
 
 @property(nonatomic, strong) UILabel *titleLabel;
 @property(nonatomic, strong) UILabel *statusLabel;
 @property(nonatomic, strong) UIButton *button;
 
 @end
+
 
 @implementation SleepModeContentViewController
 
@@ -44,17 +43,18 @@ static NSString * const kSleepModeStateChangedNotification =
         @"Chế độ ngủ";
 
     self.titleLabel.font =
-        [UIFont systemFontOfSize:17
+        [UIFont systemFontOfSize:17.0
                           weight:UIFontWeightSemibold];
 
     self.titleLabel.textAlignment =
         NSTextAlignmentCenter;
 
+
     self.statusLabel =
         [[UILabel alloc] init];
 
     self.statusLabel.font =
-        [UIFont systemFontOfSize:13
+        [UIFont systemFontOfSize:13.0
                           weight:UIFontWeightRegular];
 
     self.statusLabel.textAlignment =
@@ -62,19 +62,18 @@ static NSString * const kSleepModeStateChangedNotification =
 
     self.statusLabel.numberOfLines = 2;
 
+
     self.button =
         [UIButton buttonWithType:UIButtonTypeSystem];
 
-    [self.button setTitle:@"Bật"
-                 forState:UIControlStateNormal];
-
     self.button.titleLabel.font =
-        [UIFont systemFontOfSize:15
+        [UIFont systemFontOfSize:15.0
                           weight:UIFontWeightMedium];
 
     [self.button addTarget:self
                     action:@selector(togglePressed)
           forControlEvents:UIControlEventTouchUpInside];
+
 
     UIStackView *stack =
         [[UIStackView alloc]
@@ -97,33 +96,45 @@ static NSString * const kSleepModeStateChangedNotification =
 
     [self.view addSubview:stack];
 
+
     [NSLayoutConstraint activateConstraints:@[
+
         [stack.leadingAnchor
-            constraintEqualToAnchor:self.view.leadingAnchor
-                           constant:8.0],
+            constraintEqualToAnchor:
+                self.view.leadingAnchor
+            constant:8.0],
 
         [stack.trailingAnchor
-            constraintEqualToAnchor:self.view.trailingAnchor
-                           constant:-8.0],
+            constraintEqualToAnchor:
+                self.view.trailingAnchor
+            constant:-8.0],
 
         [stack.topAnchor
-            constraintEqualToAnchor:self.view.topAnchor
-                           constant:6.0],
+            constraintEqualToAnchor:
+                self.view.topAnchor
+            constant:6.0],
 
         [stack.bottomAnchor
-            constraintEqualToAnchor:self.view.bottomAnchor
-                           constant:-6.0]
+            constraintEqualToAnchor:
+                self.view.bottomAnchor
+            constant:-6.0]
+
     ]];
+
+
+    /*
+     * Nhấn giữ nút để chọn timeout.
+     */
 
     UILongPressGestureRecognizer *longPress =
         [[UILongPressGestureRecognizer alloc]
             initWithTarget:self
                     action:@selector(longPressed:)];
 
-    longPress.minimumPressDuration =
-        0.5;
+    longPress.minimumPressDuration = 0.5;
 
     [self.button addGestureRecognizer:longPress];
+
 
     [[NSNotificationCenter defaultCenter]
         addObserver:self
@@ -131,14 +142,17 @@ static NSString * const kSleepModeStateChangedNotification =
                name:kSleepModeStateChangedNotification
              object:nil];
 
+
     [self updateUI];
 }
+
 
 - (void)dealloc
 {
     [[NSNotificationCenter defaultCenter]
         removeObserver:self];
 }
+
 
 #pragma mark - State
 
@@ -148,17 +162,20 @@ static NSString * const kSleepModeStateChangedNotification =
                 boolForKey:kSleepModeEnabledKey];
 }
 
+
 - (NSTimeInterval)timeout
 {
     NSTimeInterval timeout =
         [[NSUserDefaults standardUserDefaults]
             doubleForKey:kSleepModeTimeoutKey];
 
-    if (timeout <= 0)
+    if (timeout <= 0.0) {
         timeout = 15.0;
+    }
 
     return timeout;
 }
+
 
 #pragma mark - UI
 
@@ -169,6 +186,7 @@ static NSString * const kSleepModeStateChangedNotification =
 
     NSTimeInterval timeout =
         [self timeout];
+
 
     if (enabled) {
 
@@ -190,13 +208,17 @@ static NSString * const kSleepModeStateChangedNotification =
     }
 }
 
-- (NSString *)timeoutText:(NSTimeInterval)timeout
+
+- (NSString *)timeoutText:
+    (NSTimeInterval)timeout
 {
     if (timeout < 60.0) {
+
         return [NSString stringWithFormat:
             @"%.0f giây",
             timeout];
     }
+
 
     if (timeout < 3600.0) {
 
@@ -208,6 +230,7 @@ static NSString * const kSleepModeStateChangedNotification =
             (long)minutes];
     }
 
+
     NSInteger hours =
         (NSInteger)(timeout / 3600.0);
 
@@ -216,12 +239,14 @@ static NSString * const kSleepModeStateChangedNotification =
         (long)hours];
 }
 
+
 #pragma mark - Toggle
 
 - (void)togglePressed
 {
     BOOL enabled =
         ![self isEnabled];
+
 
     [[NSUserDefaults standardUserDefaults]
         setBool:enabled
@@ -230,27 +255,41 @@ static NSString * const kSleepModeStateChangedNotification =
     [[NSUserDefaults standardUserDefaults]
         synchronize];
 
-    [self postCommand:@{
-        @"enabled": @(enabled)
-    }];
+
+    [[NSNotificationCenter defaultCenter]
+        postNotificationName:
+            kSleepModeCommandNotification
+        object:nil
+        userInfo:@{
+            @"enabled": @(enabled)
+        }];
+
 
     [self updateUI];
 }
 
+
 #pragma mark - Timeout
 
-- (void)longPressed:(UILongPressGestureRecognizer *)gesture
+- (void)longPressed:
+    (UILongPressGestureRecognizer *)gesture
 {
     if (gesture.state !=
         UIGestureRecognizerStateBegan) {
+
         return;
     }
 
+
     UIAlertController *alert =
         [UIAlertController
-            alertControllerWithTitle:@"Thời gian tự khóa"
-                             message:@"Chọn thời gian"
-                      preferredStyle:UIAlertControllerStyleActionSheet];
+            alertControllerWithTitle:
+                @"Thời gian tự khóa"
+            message:
+                @"Chọn thời gian"
+            preferredStyle:
+                UIAlertControllerStyleActionSheet];
+
 
     NSArray *items = @[
         @[@"15 giây", @15.0],
@@ -262,6 +301,7 @@ static NSString * const kSleepModeStateChangedNotification =
         @[@"2 giờ", @7200.0]
     ];
 
+
     for (NSArray *item in items) {
 
         NSString *title =
@@ -269,6 +309,7 @@ static NSString * const kSleepModeStateChangedNotification =
 
         NSNumber *value =
             item[1];
+
 
         UIAlertAction *action =
             [UIAlertAction
@@ -283,15 +324,23 @@ static NSString * const kSleepModeStateChangedNotification =
             [[NSUserDefaults standardUserDefaults]
                 synchronize];
 
-            [self postCommand:@{
-                @"timeout": value
-            }];
+
+            [[NSNotificationCenter defaultCenter]
+                postNotificationName:
+                    kSleepModeCommandNotification
+                object:nil
+                userInfo:@{
+                    @"timeout": value
+                }];
+
 
             [self updateUI];
         }];
 
+
         [alert addAction:action];
     }
+
 
     [alert addAction:
         [UIAlertAction
@@ -299,33 +348,30 @@ static NSString * const kSleepModeStateChangedNotification =
                      style:UIAlertActionStyleCancel
                    handler:nil]];
 
+
     [self presentViewController:alert
                        animated:YES
                      completion:nil];
 }
 
-#pragma mark - Notification
 
-- (void)stateChanged:(NSNotification *)notification
+#pragma mark - State Notification
+
+- (void)stateChanged:
+    (NSNotification *)notification
 {
-    dispatch_async(dispatch_get_main_queue(), ^{
-        [self updateUI];
-    });
-}
-
-#pragma mark - Command
-
-- (void)postCommand:(NSDictionary *)info
-{
-    [[NSNotificationCenter defaultCenter]
-        postNotificationName:kSleepModeCommandNotification
-                      object:nil
-                    userInfo:info];
+    dispatch_async(
+        dispatch_get_main_queue(),
+        ^{
+            [self updateUI];
+        }
+    );
 }
 
 @end
 
-#pragma mark - CCUIContentModule
+
+#pragma mark - SleepModeModule
 
 @interface SleepModeModule :
     NSObject <CCUIContentModule>
@@ -333,27 +379,49 @@ static NSString * const kSleepModeStateChangedNotification =
 @property(nonatomic, strong)
     SleepModeContentViewController *viewController;
 
+@property(nonatomic, strong)
+    UIViewController *backgroundViewController;
+
 @end
 
+
 @implementation SleepModeModule
+
+@synthesize backgroundViewController =
+    _backgroundViewController;
+
 
 - (instancetype)init
 {
     self = [super init];
 
     if (self) {
+
         _viewController =
             [[SleepModeContentViewController alloc]
                 init];
+
+        /*
+         * CCSupport yêu cầu property này.
+         *
+         * Dùng chính controller của module làm
+         * background controller.
+         */
+        _backgroundViewController =
+            _viewController;
     }
 
     return self;
 }
 
+
+#pragma mark - CCUIContentModule
+
 - (UIViewController *)contentViewController
 {
     return self.viewController;
 }
+
 
 - (BOOL)isContentModuleEnabled
 {
@@ -361,7 +429,9 @@ static NSString * const kSleepModeStateChangedNotification =
                 boolForKey:kSleepModeEnabledKey];
 }
 
-- (void)setContentModuleEnabled:(BOOL)enabled
+
+- (void)setContentModuleEnabled:
+    (BOOL)enabled
 {
     [[NSUserDefaults standardUserDefaults]
         setBool:enabled
@@ -370,12 +440,15 @@ static NSString * const kSleepModeStateChangedNotification =
     [[NSUserDefaults standardUserDefaults]
         synchronize];
 
+
     [[NSNotificationCenter defaultCenter]
-        postNotificationName:kSleepModeCommandNotification
-                      object:nil
-                    userInfo:@{
-                        @"enabled": @(enabled)
-                    }];
+        postNotificationName:
+            kSleepModeCommandNotification
+        object:nil
+        userInfo:@{
+            @"enabled": @(enabled)
+        }];
+
 
     [self.viewController updateUI];
 }

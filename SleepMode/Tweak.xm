@@ -1,69 +1,119 @@
 #import <Foundation/Foundation.h>
 #import <UIKit/UIKit.h>
+#import <objc/message.h>
 
 #import "SleepManager.h"
+
+#pragma mark - Private SpringBoard Classes
+
+@interface SBIdleTimerGlobalCoordinator : NSObject
+@end
+
+@interface SBBacklightController : NSObject
+@end
+
+#pragma mark - Activity State
+
+static BOOL gSleepModeInitialized = NO;
+
+static void SleepModeRegisterActivity(void)
+{
+    if (!gSleepModeInitialized) {
+        return;
+    }
+
+    [[SleepManager sharedInstance]
+        userDidInteract];
+}
 
 #pragma mark - SpringBoard
 
 %group SpringBoardGroup
 
-%hook SpringBoard
+/*
+ * Đây là điểm rất gần với cơ chế Auto-Lock của SpringBoard.
+ *
+ * Không tự tạo gesture recognizer.
+ * Không inject vào app.
+ *
+ * Mỗi khi SpringBoard xử lý reset idle timer,
+ * SleepMode reset bộ đếm của chính nó.
+ */
+%hook SBIdleTimerGlobalCoordinator
 
-- (void)applicationDidFinishLaunching:
-    (id)application
+- (void)resetIdleTimer
 {
     %orig;
 
-    NSLog(
-        @"[SleepMode] SpringBoard started"
-    );
+    SleepModeRegisterActivity();
+}
+
+%end
+
+
+/*
+ * SpringBoard là UIApplication của hệ thống.
+ *
+ * sendEvent: được giữ làm lớp bổ sung.
+ * Không phụ thuộc vào nó một mình.
+ */
+%hook SpringBoard
+
+- (void)applicationDidFinishLaunching:(id)application
+{
+    %orig;
+
+    NSLog(@"[SleepMode] SpringBoard started");
 
     [SleepManager sharedInstance];
 }
 
-#pragma mark - SpringBoard Event
-
+/*
+ * Một số event hệ thống đi qua UIApplication của SpringBoard.
+ * Nếu event là touch/press thì reset timer.
+ */
 - (void)sendEvent:(UIEvent *)event
 {
-    /*
-     * Kiểm tra touch trước.
-     *
-     * Không reset timer đối với:
-     * - keyboard
-     * - motion
-     * - remote control
-     * - các event không phải touch
-     */
+    if (event != nil) {
 
-    if (event != nil &&
-        event.type == UIEventTypeTouches) {
+        UIEventType type = event.type;
 
-        NSSet *touches =
-            [event allTouches];
+        if (type == UIEventTypeTouches ||
+            type == UIEventTypePresses) {
 
-        for (UITouch *touch
-             in touches) {
+            NSSet *touches =
+                [event allTouches];
 
-            UITouchPhase phase =
-                touch.phase;
-
-            if (phase == UITouchPhaseBegan ||
-                phase == UITouchPhaseMoved ||
-                phase == UITouchPhaseEnded) {
-
-                NSLog(
-                    @"[SleepMode] SpringBoard touch detected"
-                );
-
-                [[SleepManager sharedInstance]
-                    userDidInteract];
-
-                break;
+            if (touches.count > 0) {
+                SleepModeRegisterActivity();
             }
         }
     }
 
     %orig;
+}
+
+%end
+
+#pragma mark - SpringBoard Touch / Gesture Activity
+
+/*
+ * SpringBoard có rất nhiều gesture recognizer.
+ *
+ * Các callback này không dùng để điều khiển gesture.
+ * Chỉ dùng làm tín hiệu activity.
+ */
+%hook UIGestureRecognizer
+
+- (BOOL)gestureRecognizerShouldBegin:(UIGestureRecognizer *)gestureRecognizer
+{
+    BOOL result = %orig;
+
+    if (result) {
+        SleepModeRegisterActivity();
+    }
+
+    return result;
 }
 
 %end
@@ -78,17 +128,13 @@
         [[NSBundle mainBundle]
             bundleIdentifier];
 
-    if (bundleID == nil) {
-        return;
-    }
-
     if ([bundleID
             isEqualToString:
                 @"com.apple.springboard"]) {
 
-        NSLog(
-            @"[SleepMode] Injected into SpringBoard"
-        );
+        NSLog(@"[SleepMode] Injected into SpringBoard");
+
+        gSleepModeInitialized = YES;
 
         %init(SpringBoardGroup);
     }

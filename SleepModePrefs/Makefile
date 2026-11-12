@@ -5,6 +5,7 @@ THEOS_PACKAGE_SCHEME = roothide
 
 include $(THEOS)/makefiles/common.mk
 
+
 BUNDLE_NAME = SleepModePrefs
 
 SleepModePrefs_FILES = \

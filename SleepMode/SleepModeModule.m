@@ -4,7 +4,7 @@
 #import <objc/message.h>
 #import <dlfcn.h>
 
-#import "../SleepControlCenter.h"
+#import "SleepControlCenter.h"
 
 #pragma mark - Runtime helpers
 
@@ -15,10 +15,6 @@ static Class SleepModeFindCCUIToggleModule(void)
     if (cls != Nil)
         return cls;
 
-    /*
-     * ControlCenterUI là nơi chứa CCUIToggleModule trên các bản iOS
-     * hiện đại. Chỉ load nếu framework đã tồn tại.
-     */
     void *handle = dlopen(
         "/System/Library/PrivateFrameworks/ControlCenterUI.framework/ControlCenterUI",
         RTLD_LAZY
@@ -33,6 +29,8 @@ static Class SleepModeFindCCUIToggleModule(void)
     return cls;
 }
 
+#pragma mark - Module methods
+
 static BOOL SleepModeIsSelected(id self, SEL _cmd)
 {
     return [SleepControlCenter sharedInstance].enabled;
@@ -40,7 +38,8 @@ static BOOL SleepModeIsSelected(id self, SEL _cmd)
 
 static void SleepModeSetSelected(id self, SEL _cmd, BOOL selected)
 {
-    SleepControlCenter *control = [SleepControlCenter sharedInstance];
+    SleepControlCenter *control =
+        [SleepControlCenter sharedInstance];
 
     if (selected)
         [control enable];
@@ -56,17 +55,17 @@ static void SleepModeHandlePress(id self, SEL _cmd)
 static void SleepModeRefreshState(id self, SEL _cmd)
 {
     /*
-     * State được lưu trong SleepControlCenter.
-     * Không cần làm gì thêm ở đây.
+     * Trạng thái thực tế được lưu bởi SleepControlCenter.
+     * Không cần thực hiện thêm hành động ở đây.
      */
 }
 
-#pragma mark - Register module
+#pragma mark - Register
 
 static void SleepModeRegisterModule(void)
 {
     /*
-     * Nếu class đã tồn tại thì không đăng ký lại.
+     * Tránh đăng ký class lần thứ hai.
      */
     if (NSClassFromString(@"SleepModeModule") != Nil)
         return;
@@ -80,31 +79,24 @@ static void SleepModeRegisterModule(void)
     }
 
     /*
-     * Tạo:
-     *
-     *     SleepModeModule : CCUIToggleModule
-     *
-     * bằng runtime.
-     *
-     * Không có reference trực tiếp tới CCUIToggleModule
-     * trong linker.
+     * Tạo runtime subclass:
+
+        SleepModeModule : CCUIToggleModule
+
+     * Không reference trực tiếp CCUIToggleModule lúc link.
      */
-    Class moduleClass = objc_allocateClassPair(
-        baseClass,
-        "SleepModeModule",
-        0
-    );
+    Class moduleClass =
+        objc_allocateClassPair(
+            baseClass,
+            "SleepModeModule",
+            0
+        );
 
     if (moduleClass == Nil)
-    {
-        /*
-         * Có thể class đã được tạo bởi lần load trước.
-         */
         return;
-    }
 
     /*
-     * -isSelected
+     * isSelected
      */
     class_addMethod(
         moduleClass,
@@ -114,7 +106,7 @@ static void SleepModeRegisterModule(void)
     );
 
     /*
-     * -setSelected:
+     * setSelected:
      */
     class_addMethod(
         moduleClass,
@@ -124,7 +116,7 @@ static void SleepModeRegisterModule(void)
     );
 
     /*
-     * Một số phiên bản ControlCenter gọi handlePress.
+     * handlePress
      */
     class_addMethod(
         moduleClass,
@@ -134,7 +126,7 @@ static void SleepModeRegisterModule(void)
     );
 
     /*
-     * Một số phiên bản gọi refreshState khi cập nhật module.
+     * refreshState
      */
     class_addMethod(
         moduleClass,
@@ -143,18 +135,22 @@ static void SleepModeRegisterModule(void)
         "v@:"
     );
 
+    /*
+     * Đăng ký class với Objective-C runtime.
+     */
     objc_registerClassPair(moduleClass);
 
     NSLog(@"[SleepMode] SleepModeModule registered");
 }
 
-#pragma mark - Bundle load
+#pragma mark - Bundle initialization
 
 __attribute__((constructor))
 static void SleepModeModuleInit(void)
 {
     /*
-     * ControlCenterUI phải được load trước khi tìm CCUIToggleModule.
+     * Chờ main queue để ControlCenterUI có thời gian
+     * load class CCUIToggleModule.
      */
     dispatch_async(dispatch_get_main_queue(), ^{
         SleepModeRegisterModule();

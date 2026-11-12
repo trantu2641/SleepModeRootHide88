@@ -19,6 +19,7 @@ static id SMCallObject(
 {
     if (target == nil ||
         ![target respondsToSelector:selector]) {
+
         return nil;
     }
 
@@ -26,26 +27,6 @@ static id SMCallObject(
 #pragma clang diagnostic ignored "-Warc-performSelector-leaks"
 
     return [target performSelector:selector];
-
-#pragma clang diagnostic pop
-}
-
-static id SMCallObjectArg(
-    id target,
-    SEL selector,
-    id argument
-)
-{
-    if (target == nil ||
-        ![target respondsToSelector:selector]) {
-        return nil;
-    }
-
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Warc-performSelector-leaks"
-
-    return [target performSelector:selector
-                        withObject:argument];
 
 #pragma clang diagnostic pop
 }
@@ -104,16 +85,7 @@ static void SleepModeTouchCallback(
         /*
          * CORE TEST
          *
-         * Hiện tại test 60 giây.
-         *
-         * Sau khi core ổn định sẽ chuyển sang:
-         *
-         * 60
-         * 300
-         * 900
-         * 1800
-         * 3600
-         * 7200
+         * 60 giây.
          */
 
         _enabled = YES;
@@ -126,8 +98,8 @@ static void SleepModeTouchCallback(
         _isEnteringSleep = NO;
 
         /*
-         * Nhận thông báo khi có touch
-         * từ các process khác.
+         * Nhận Darwin Notification
+         * từ các process/app khác.
          */
 
         CFNotificationCenterAddObserver(
@@ -265,11 +237,6 @@ static void SleepModeTouchCallback(
         return;
     }
 
-    /*
-     * Bất kỳ touch nào cũng reset
-     * thời gian chờ.
-     */
-
     [self resetTimer];
 }
 
@@ -278,10 +245,9 @@ static void SleepModeTouchCallback(
 - (void)terminateUserApplications
 {
     /*
-     * Chỉ thực hiện trong SpringBoard.
+     * Chỉ thực hiện từ SpringBoard.
      *
-     * Tuyệt đối không dùng kill(pid, SIGKILL)
-     * cho toàn bộ process.
+     * Không dùng kill()/SIGKILL.
      */
 
     Class SBApplicationControllerClass =
@@ -325,7 +291,7 @@ static void SleepModeTouchCallback(
     }
 
     /*
-     * Ưu tiên runningApplications.
+     * Lấy danh sách app đang chạy.
      */
 
     NSArray *runningApplications = nil;
@@ -348,8 +314,9 @@ static void SleepModeTouchCallback(
      * Fallback sang allApplications.
      */
 
-    if (![runningApplications isKindOfClass:
-            [NSArray class]]) {
+    if (![runningApplications
+            isKindOfClass:
+                [NSArray class]]) {
 
         SEL allApplicationsSelector =
             @selector(allApplications);
@@ -413,10 +380,7 @@ static void SleepModeTouchCallback(
     }
 
     /*
-     * FBSSystemService
-     *
-     * Đây là service của FrontBoard dùng để
-     * yêu cầu hệ thống terminate application.
+     * FrontBoard service.
      */
 
     Class FBSSystemServiceClass =
@@ -473,9 +437,7 @@ static void SleepModeTouchCallback(
     }
 
     /*
-     * Các bundle không được đụng vào.
-     *
-     * SpringBoard tuyệt đối không được terminate.
+     * Những bundle tuyệt đối không terminate.
      */
 
     NSSet *excludedBundleIDs =
@@ -532,8 +494,7 @@ static void SleepModeTouchCallback(
         }
 
         /*
-         * Không terminate SpringBoard
-         * hoặc các process được bảo vệ.
+         * Không đụng vào bundle bị bảo vệ.
          */
 
         if ([excludedBundleIDs
@@ -544,20 +505,7 @@ static void SleepModeTouchCallback(
         }
 
         /*
-         * Chỉ xử lý bundle của app.
-         *
-         * Apple system application có thể bắt đầu
-         * bằng com.apple.
-         *
-         * Ở phiên bản đầu này:
-         *
-         * - com.apple.springboard -> bỏ qua
-         * - các system process không nằm trong
-         *   SBApplicationController thường không
-         *   xuất hiện ở đây
-         *
-         * Nhưng để an toàn, không đụng tới
-         * bundle com.apple.*.
+         * Không terminate system apps.
          */
 
         if ([bundleID
@@ -606,9 +554,6 @@ static void SleepModeTouchCallback(
 
     /*
      * Đánh dấu ngay lập tức.
-     *
-     * Không gọi resetTimer() ở đây vì
-     * resetTimer() sẽ hạ _isEnteringSleep về NO.
      */
 
     _isEnteringSleep = YES;
@@ -619,17 +564,14 @@ static void SleepModeTouchCallback(
 
     /*
      * Bước 1:
-     * đóng app người dùng.
+     * terminate app người dùng.
      */
 
     [self terminateUserApplications];
 
     /*
-     * Cho SpringBoard một khoảng thời gian
-     * xử lý termination request.
-     *
-     * Không khóa ngay lập tức để tránh
-     * request terminate và lock đè lên nhau.
+     * Chờ một chút để FrontBoard xử lý
+     * request terminate.
      */
 
     __weak SleepManager *weakSelf =
@@ -652,9 +594,8 @@ static void SleepModeTouchCallback(
             [strongSelf lockDevice];
 
             /*
-             * Giữ guard một chút trong chu kỳ
-             * hiện tại, sau đó cho phép timer
-             * hoạt động lại.
+             * Reset mốc thời gian sau khi
+             * hoàn thành chu kỳ.
              */
 
             strongSelf->_lastInteraction =
@@ -723,7 +664,7 @@ static void SleepModeTouchCallback(
 
     /*
      * Cách 2:
-     * SpringBoard _simulateLockButtonPress
+     * _simulateLockButtonPress
      */
 
     UIApplication *application =

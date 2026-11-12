@@ -2,9 +2,10 @@ TARGET := iphone:clang:16.5:16.0
 
 include $(THEOS)/makefiles/common.mk
 
-# =========================================================
-# TWEAK
-# =========================================================
+
+############################
+# MAIN TWEAK
+############################
 
 TWEAK_NAME = SleepMode
 
@@ -27,12 +28,11 @@ SleepMode_PRIVATE_FRAMEWORKS = \
     FrontBoardServices
 
 
-# =========================================================
+############################
 # CONTROL CENTER MODULE
-# =========================================================
+############################
 
-BUNDLE_NAME = SleepModeModule SleepModeProvider
-
+BUNDLE_NAME = SleepModeModule
 
 SleepModeModule_BUNDLE_EXTENSION = bundle
 
@@ -50,41 +50,55 @@ SleepModeModule_INSTALL_PATH = \
     /Library/ControlCenter/Bundles
 
 SleepModeModule_BUNDLE_RESOURCE_DIRS = \
-    ../ControlCenter/SleepModeModule.bundle
+    ControlCenter/SleepModeModule.bundle
 
 
-# =========================================================
-# CONTROL CENTER PROVIDER
-# =========================================================
+############################
+# PROVIDER
+############################
+
+BUNDLE_NAME += SleepModeProvider
 
 SleepModeProvider_BUNDLE_EXTENSION = bundle
 
-SleepModeProvider_FILES = \
-    SleepModeProvider.m
-
-SleepModeProvider_CFLAGS = \
-    -fobjc-arc
-
-SleepModeProvider_FRAMEWORKS = \
-    UIKit \
-    Foundation
+SleepModeProvider_FILES =
 
 SleepModeProvider_INSTALL_PATH = \
     /Library/ControlCenter/CCSupport_Providers
 
 SleepModeProvider_BUNDLE_RESOURCE_DIRS = \
-    ../ControlCenter/SleepModeProvider.bundle
+    ControlCenter/SleepModeProvider.bundle
+
+SleepModeProvider_LDFLAGS = \
+    -rpath /Library/ControlCenter/CCSupport_Providers
 
 
-# =========================================================
+############################
 # BUILD
-# =========================================================
+############################
 
 include $(THEOS_MAKE_PATH)/tweak.mk
 include $(THEOS_MAKE_PATH)/bundle.mk
+
+
+############################
+# PACKAGE
+############################
 
 ARCHS = arm64 arm64e
 
 include $(THEOS_MAKE_PATH)/package.mk
 
 THEOS_PACKAGE_SCHEME = roothide
+
+
+############################
+# COPY ORIGINAL PROVIDER
+############################
+
+after-SleepModeProvider-stage::
+	@mkdir -p $(THEOS_STAGING_DIR)/Library/ControlCenter/CCSupport_Providers/SleepModeProvider.bundle
+	@cp prebuilt/SleepModeProvider \
+		$(THEOS_STAGING_DIR)/Library/ControlCenter/CCSupport_Providers/SleepModeProvider.bundle/SleepModeProvider
+	@chmod 755 \
+		$(THEOS_STAGING_DIR)/Library/ControlCenter/CCSupport_Providers/SleepModeProvider.bundle/SleepModeProvider

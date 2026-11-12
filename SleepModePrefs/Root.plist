@@ -8,6 +8,11 @@
     <key>PreferenceSpecifiers</key>
     <array>
 
+
+        <!-- ================================================= -->
+        <!-- HEADER -->
+        <!-- ================================================= -->
+
         <dict>
             <key>Type</key>
             <string>PSGroupCell</string>
@@ -16,9 +21,13 @@
             <string>SLEEP MODE</string>
 
             <key>FooterText</key>
-            <string>Tự động đóng các ứng dụng đang chạy rồi khóa iPhone khi không có thao tác chạm.</string>
+            <string>Tự động đóng ứng dụng đang chạy rồi khóa iPhone khi không có thao tác chạm.</string>
         </dict>
 
+
+        <!-- ================================================= -->
+        <!-- ENABLE -->
+        <!-- ================================================= -->
 
         <dict>
             <key>Type</key>
@@ -40,6 +49,10 @@
             <string>com.trantu.sleepmode.settingsChanged</string>
         </dict>
 
+
+        <!-- ================================================= -->
+        <!-- TIMEOUT -->
+        <!-- ================================================= -->
 
         <dict>
             <key>Type</key>
@@ -82,15 +95,21 @@
         </dict>
 
 
+        <!-- ================================================= -->
+        <!-- FOOTER -->
+        <!-- ================================================= -->
+
         <dict>
             <key>Type</key>
             <string>PSGroupCell</string>
 
             <key>FooterText</key>
-            <string>Khi hết thời gian, SleepMode sẽ đóng ứng dụng người dùng đang chạy trước khi khóa thiết bị.</string>
+            <string>Khi hết thời gian, SleepMode sẽ đóng ứng dụng người dùng trước khi khóa thiết bị.</string>
         </dict>
 
+
     </array>
+
 
     <key>title</key>
     <string>SleepMode</string>

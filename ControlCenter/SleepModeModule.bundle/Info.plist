@@ -5,10 +5,6 @@
 <plist version="1.0">
 <dict>
 
-    <!-- ================================================== -->
-    <!-- Bundle -->
-    <!-- ================================================== -->
-
     <key>CFBundleIdentifier</key>
     <string>com.trantu.sleepmode.module</string>
 
@@ -37,9 +33,9 @@
     <string>16.0</string>
 
 
-    <!-- ================================================== -->
-    <!-- Control Center -->
-    <!-- ================================================== -->
+    <!--
+        CCSupport custom module size
+    -->
 
     <key>CCSModuleSize</key>
     <dict>
@@ -59,7 +55,7 @@
             <integer>2</integer>
 
             <key>Height</key>
-            <integer>1</integer>
+            <integer>2</integer>
         </dict>
 
     </dict>

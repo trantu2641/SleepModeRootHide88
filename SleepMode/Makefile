@@ -1,3 +1,4 @@
+
 TARGET := iphone:clang:16.5:16.0
 
 include $(THEOS)/makefiles/common.mk
@@ -45,6 +46,9 @@ SleepModeModule_CFLAGS = \
 SleepModeModule_FRAMEWORKS = \
     UIKit \
     Foundation
+
+SleepModeModule_PRIVATE_FRAMEWORKS = \
+    ControlCenterUIKit
 
 SleepModeModule_INSTALL_PATH = \
     /Library/ControlCenter/Bundles

@@ -1,8 +1,8 @@
 #import <Foundation/Foundation.h>
 
-@class SleepManager;
-
 NS_ASSUME_NONNULL_BEGIN
+
+extern NSString * const SleepControlCenterStateChangedNotification;
 
 @interface SleepControlCenter : NSObject
 
@@ -18,9 +18,6 @@ NS_ASSUME_NONNULL_BEGIN
 - (NSTimeInterval)currentTimeout;
 
 - (void)resetTimer;
-
-extern NSString * const
-    SleepControlCenterStateChangedNotification;
 
 @end
 

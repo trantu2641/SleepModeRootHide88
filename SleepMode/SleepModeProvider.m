@@ -46,10 +46,8 @@ static NSString * const SleepModeIdentifier =
     @"com.trantu.sleepmode";
 
 
-@interface SleepModeProvider : NSObject
-<
-CCSModuleProvider
->
+@interface SleepModeProvider :
+    NSObject <CCSModuleProvider>
 @end
 
 
@@ -58,8 +56,6 @@ CCSModuleProvider
 
 - (NSUInteger)numberOfProvidedModules
 {
-    NSLog(@"[SleepMode] Provider numberOfProvidedModules -> 1");
-
     return 1;
 }
 
@@ -68,18 +64,8 @@ CCSModuleProvider
     (NSUInteger)index
 {
     if (index != 0) {
-        NSLog(
-            @"[SleepMode] Provider identifier index không hợp lệ: %lu",
-            (unsigned long)index
-        );
-
         return nil;
     }
-
-    NSLog(
-        @"[SleepMode] Provider identifier -> %@",
-        SleepModeIdentifier
-    );
 
     return SleepModeIdentifier;
 }
@@ -90,13 +76,8 @@ CCSModuleProvider
 {
     if (![identifier isEqualToString:
           SleepModeIdentifier]) {
-
         return nil;
     }
-
-    NSLog(
-        @"[SleepMode] Provider displayName -> Chế độ ngủ"
-    );
 
     return @"Chế độ ngủ";
 }
@@ -107,7 +88,6 @@ CCSModuleProvider
 {
     if (![identifier isEqualToString:
           SleepModeIdentifier]) {
-
         return nil;
     }
 
@@ -124,7 +104,6 @@ CCSModuleProvider
 {
     if (![identifier isEqualToString:
           SleepModeIdentifier]) {
-
         return nil;
     }
 
@@ -137,40 +116,18 @@ CCSModuleProvider
             ofType:@"png"];
 
     if (!path) {
-
-        NSLog(
-            @"[SleepMode] Provider không tìm thấy icon: SleepModeProviderIcon.png"
-        );
-
         return nil;
     }
 
-    UIImage *image =
-        [UIImage imageWithContentsOfFile:path];
-
-    NSLog(
-        @"[SleepMode] Provider settings icon = %@",
-        image
-    );
-
-    return image;
+    return [UIImage imageWithContentsOfFile:path];
 }
 
 
 - (id)moduleInstanceForModuleIdentifier:
     (NSString *)identifier
 {
-    NSLog(
-        @"[SleepMode] Provider yêu cầu module: %@",
-        identifier
-    );
-
     if (![identifier isEqualToString:
           SleepModeIdentifier]) {
-
-        NSLog(
-            @"[SleepMode] Provider identifier không khớp"
-        );
 
         return nil;
     }
@@ -185,32 +142,14 @@ CCSModuleProvider
 
 
     if (!moduleBundle) {
-
-        NSLog(
-            @"[SleepMode] Không tìm thấy bundle: %@",
-            modulePath
-        );
-
         return nil;
     }
-
-
-    NSLog(
-        @"[SleepMode] Đã tìm thấy bundle: %@",
-        moduleBundle.bundlePath
-    );
 
 
     NSError *error = nil;
 
     BOOL loaded =
         [moduleBundle loadAndReturnError:&error];
-
-
-    NSLog(
-        @"[SleepMode] load bundle = %d",
-        loaded
-    );
 
 
     if (!loaded) {
@@ -228,18 +167,7 @@ CCSModuleProvider
         NSClassFromString(@"SleepModeModule");
 
 
-    NSLog(
-        @"[SleepMode] SleepModeModule class = %@",
-        moduleClass
-    );
-
-
     if (!moduleClass) {
-
-        NSLog(
-            @"[SleepMode] Không tìm thấy class SleepModeModule"
-        );
-
         return nil;
     }
 
@@ -248,25 +176,9 @@ CCSModuleProvider
         [[moduleClass alloc] init];
 
 
-    NSLog(
-        @"[SleepMode] module instance = %@",
-        module
-    );
-
-
     if (!module) {
-
-        NSLog(
-            @"[SleepMode] Không tạo được SleepModeModule"
-        );
-
         return nil;
     }
-
-
-    NSLog(
-        @"[SleepMode] MODULE ĐÃ TẠO THÀNH CÔNG"
-    );
 
 
     return module;

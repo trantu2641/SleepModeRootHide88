@@ -2,15 +2,30 @@
 #import <UIKit/UIKit.h>
 #import <objc/message.h>
 
-#import "SleepControlCenter.h"
 
+#pragma mark - Control Center private class
+
+/*
+ * Không link trực tiếp SleepControlCenter.
+ *
+ * CCUIToggleModule là superclass mà Control Center cung cấp
+ * khi bundle được load.
+ *
+ * Chỉ khai báo interface để compiler biết các method cần dùng.
+ */
 @interface CCUIToggleModule : NSObject
+
 - (instancetype)init;
+
 @end
+
 
 @interface SleepModeModule : CCUIToggleModule
+
 @end
 
+
+#pragma mark - Constants
 
 static NSString * const kSleepModeIdentifier =
     @"com.trantu.sleepmode";
@@ -22,6 +37,15 @@ static NSString * const kSleepModeTimeoutKey =
     @"SleepModeTimeout";
 
 
+static NSString * const kSleepModeCommandNotification =
+    @"com.trantu.sleepmode.command";
+
+static NSString * const kSleepModeStateChangedNotification =
+    @"com.trantu.sleepmode.stateChanged";
+
+
+#pragma mark - SleepModeModule
+
 @implementation SleepModeModule
 
 
@@ -32,18 +56,25 @@ static NSString * const kSleepModeTimeoutKey =
     self = [super init];
 
     if (self) {
+
         NSUserDefaults *defaults =
             [NSUserDefaults standardUserDefaults];
 
-        if ([defaults objectForKey:kSleepModeEnabledKey] == nil) {
+        if ([defaults objectForKey:
+                kSleepModeEnabledKey] == nil) {
+
             [defaults setBool:NO
                        forKey:kSleepModeEnabledKey];
         }
 
-        if ([defaults objectForKey:kSleepModeTimeoutKey] == nil) {
+        if ([defaults objectForKey:
+                kSleepModeTimeoutKey] == nil) {
+
             [defaults setDouble:15.0
                          forKey:kSleepModeTimeoutKey];
         }
+
+        [defaults synchronize];
     }
 
     return self;
@@ -76,7 +107,7 @@ static NSString * const kSleepModeTimeoutKey =
 }
 
 
-#pragma mark - Selected State
+#pragma mark - Selected state
 
 - (BOOL)isSelected
 {
@@ -99,19 +130,28 @@ static NSString * const kSleepModeTimeoutKey =
 
     [defaults synchronize];
 
-    SleepControlCenter *control =
-        [SleepControlCenter sharedInstance];
 
-    if (selected) {
-        [control enable];
-    } else {
-        [control disable];
-    }
+    /*
+     * Gửi lệnh sang SleepMode tweak đang chạy trong
+     * SpringBoard.
+     */
+    NSDictionary *info =
+        @{
+            @"enabled": @(selected)
+        };
 
     [[NSNotificationCenter defaultCenter]
         postNotificationName:
-            SleepModeStateChangedNotification
+            kSleepModeCommandNotification
+        object:nil
+        userInfo:info];
+
+
+    [[NSNotificationCenter defaultCenter]
+        postNotificationName:
+            kSleepModeStateChangedNotification
         object:nil];
+
 
     [self refreshModuleState];
 }
@@ -121,7 +161,10 @@ static NSString * const kSleepModeTimeoutKey =
 
 - (void)handleTap
 {
-    [self setSelected:![self isSelected]];
+    BOOL selected =
+        [self isSelected];
+
+    [self setSelected:!selected];
 }
 
 - (void)activate
@@ -143,6 +186,7 @@ static NSString * const kSleepModeTimeoutKey =
             ofType:@"png"];
 
     if (!path) {
+
         path =
             [bundle pathForResource:
                 @"SleepModeModuleIcon@3x"
@@ -176,26 +220,23 @@ static NSString * const kSleepModeTimeoutKey =
 
 - (void)setSelectedGlyphColor:(UIColor *)color
 {
-    /*
-     * CCSupport tự xử lý màu của trạng thái selected.
-     */
 }
 
 
-#pragma mark - State
+#pragma mark - State refresh
 
 - (void)refreshModuleState
 {
     /*
-     * Không gọi private selector trực tiếp.
+     * Không gọi private selector của CCSupport ở đây.
      *
-     * State được lưu trong NSUserDefaults và
-     * SleepControlCenter xử lý phần logic.
+     * Control Center sẽ đọc lại selected state
+     * khi module được refresh.
      */
 }
 
 
-#pragma mark - Long Press
+#pragma mark - Long press
 
 - (void)handleLongPress
 {
@@ -207,33 +248,40 @@ static NSString * const kSleepModeTimeoutKey =
         current = 15.0;
     }
 
+
     UIWindow *window = nil;
 
 
     /*
      * iOS 13+
      *
-     * Không sử dụng UIApplication.keyWindow
-     * vì API này deprecated từ iOS 13.
+     * Không dùng UIApplication.keyWindow vì
+     * API này deprecated.
      */
     if (@available(iOS 13.0, *)) {
 
         NSSet<UIScene *> *scenes =
-            [UIApplication sharedApplication].connectedScenes;
+            [UIApplication sharedApplication]
+                .connectedScenes;
 
         for (UIScene *scene in scenes) {
 
             if (scene.activationState !=
                 UISceneActivationStateForegroundActive) {
+
                 continue;
             }
 
-            if (![scene isKindOfClass:[UIWindowScene class]]) {
+            if (![scene isKindOfClass:
+                    [UIWindowScene class]]) {
+
                 continue;
             }
+
 
             UIWindowScene *windowScene =
                 (UIWindowScene *)scene;
+
 
             for (UIWindow *candidate
                  in windowScene.windows) {
@@ -248,62 +296,34 @@ static NSString * const kSleepModeTimeoutKey =
 
                 if (candidate.windowLevel !=
                     UIWindowLevelNormal) {
+
                     continue;
                 }
 
-                if (candidate.rootViewController == nil) {
+                if (!candidate.rootViewController) {
                     continue;
                 }
 
-                /*
-                 * Ưu tiên key window.
-                 */
+
                 if (candidate.isKeyWindow) {
+
                     window = candidate;
                     break;
                 }
 
-                /*
-                 * Nếu chưa tìm được key window,
-                 * giữ lại window hợp lệ đầu tiên.
-                 */
+
                 if (!window) {
                     window = candidate;
                 }
             }
 
-            if (window && window.isKeyWindow) {
+
+            if (window &&
+                window.isKeyWindow) {
+
                 break;
             }
         }
-
-    } else {
-
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wdeprecated-declarations"
-
-        NSArray *windows =
-            [UIApplication sharedApplication].windows;
-
-        for (UIWindow *candidate in windows) {
-
-            if (candidate.hidden) {
-                continue;
-            }
-
-            if (candidate.alpha <= 0.0) {
-                continue;
-            }
-
-            if (candidate.rootViewController == nil) {
-                continue;
-            }
-
-            window = candidate;
-            break;
-        }
-
-#pragma clang diagnostic pop
     }
 
 
@@ -320,20 +340,23 @@ static NSString * const kSleepModeTimeoutKey =
     }
 
 
-    /*
-     * Nếu đang có một ViewController khác
-     * được trình bày, lấy controller ngoài cùng.
-     */
     while (root.presentedViewController) {
-        root = root.presentedViewController;
+
+        root =
+            root.presentedViewController;
     }
 
 
     UIAlertController *alert =
         [UIAlertController
-            alertControllerWithTitle:@"Chế độ ngủ"
-                             message:@"Tự khóa sau"
-                      preferredStyle:UIAlertControllerStyleActionSheet];
+            alertControllerWithTitle:
+                @"Chế độ ngủ"
+
+            message:
+                @"Tự khóa sau"
+
+            preferredStyle:
+                UIAlertControllerStyleActionSheet];
 
 
     NSArray *options = @[
@@ -384,28 +407,74 @@ static NSString * const kSleepModeTimeoutKey =
 
 
         BOOL isCurrent =
-            (fabs([value doubleValue] - current) < 0.5);
+            fabs([value doubleValue] - current)
+            < 0.5;
 
 
-        NSString *finalTitle =
-            isCurrent
-                ? [NSString stringWithFormat:
-                       @"✓ %@", title]
-                : title;
+        NSString *finalTitle;
+
+        if (isCurrent) {
+
+            finalTitle =
+                [NSString stringWithFormat:
+                    @"✓ %@", title];
+
+        } else {
+
+            finalTitle =
+                title;
+        }
 
 
         UIAlertAction *action =
             [UIAlertAction
-                actionWithTitle:finalTitle
-                         style:UIAlertActionStyleDefault
-                       handler:^(UIAlertAction *action) {
+                actionWithTitle:
+                    finalTitle
 
-            SleepControlCenter *control =
-                [SleepControlCenter sharedInstance];
+                style:
+                    UIAlertActionStyleDefault
 
-            [control setTimeout:
-                [value doubleValue]];
+                handler:
+                    ^(UIAlertAction *action) {
 
+            NSTimeInterval timeout =
+                [value doubleValue];
+
+
+            NSUserDefaults *defaults =
+                [NSUserDefaults standardUserDefaults];
+
+            [defaults setDouble:
+                timeout
+                       forKey:
+                kSleepModeTimeoutKey];
+
+            [defaults synchronize];
+
+
+            /*
+             * Gửi timeout mới sang tweak.
+             */
+            NSDictionary *info =
+                @{
+                    @"timeout": @(timeout)
+                };
+
+
+            [[NSNotificationCenter defaultCenter]
+                postNotificationName:
+                    kSleepModeCommandNotification
+
+                object:nil
+
+                userInfo:info];
+
+
+            [[NSNotificationCenter defaultCenter]
+                postNotificationName:
+                    kSleepModeStateChangedNotification
+
+                object:nil];
         }];
 
 
@@ -415,20 +484,23 @@ static NSString * const kSleepModeTimeoutKey =
 
     [alert addAction:
         [UIAlertAction
-            actionWithTitle:@"Hủy"
-                     style:UIAlertActionStyleCancel
-                   handler:nil]];
+            actionWithTitle:
+                @"Hủy"
+
+            style:
+                UIAlertActionStyleCancel
+
+            handler:nil]];
 
 
-    /*
-     * An toàn cho cả iPhone và iPad.
-     */
     UIPopoverPresentationController *popover =
         alert.popoverPresentationController;
 
+
     if (popover) {
 
-        popover.sourceView = window;
+        popover.sourceView =
+            window;
 
         popover.sourceRect =
             CGRectMake(
@@ -442,7 +514,9 @@ static NSString * const kSleepModeTimeoutKey =
 
     [root presentViewController:
         alert
+
            animated:YES
+
          completion:nil];
 }
 

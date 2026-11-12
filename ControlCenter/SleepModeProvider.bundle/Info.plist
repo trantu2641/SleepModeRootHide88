@@ -21,10 +21,10 @@
     <string>BNDL</string>
 
     <key>CFBundleVersion</key>
-    <string>1.6.0</string>
+    <string>1.7.0</string>
 
     <key>CFBundleShortVersionString</key>
-    <string>1.6.0</string>
+    <string>1.7.0</string>
 
     <key>NSPrincipalClass</key>
     <string>SleepModeProvider</string>

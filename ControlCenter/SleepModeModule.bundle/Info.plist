@@ -9,7 +9,7 @@
     <string>com.trantu.sleepmode.module</string>
 
     <key>CFBundleName</key>
-    <string>Chế độ ngủ</string>
+    <string>SleepModeModule</string>
 
     <key>CFBundleDisplayName</key>
     <string>Chế độ ngủ</string>
@@ -21,10 +21,10 @@
     <string>BNDL</string>
 
     <key>CFBundleVersion</key>
-    <string>1.5.0</string>
+    <string>1.6.0</string>
 
     <key>CFBundleShortVersionString</key>
-    <string>1.5.0</string>
+    <string>1.6.0</string>
 
     <key>NSPrincipalClass</key>
     <string>SleepModeModule</string>
@@ -38,19 +38,19 @@
         <key>Portrait</key>
         <dict>
             <key>Width</key>
-            <integer>2</integer>
+            <integer>1</integer>
 
             <key>Height</key>
-            <integer>2</integer>
+            <integer>1</integer>
         </dict>
 
         <key>Landscape</key>
         <dict>
             <key>Width</key>
-            <integer>2</integer>
+            <integer>1</integer>
 
             <key>Height</key>
-            <integer>2</integer>
+            <integer>1</integer>
         </dict>
 
     </dict>

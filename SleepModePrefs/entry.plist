@@ -1,32 +1,33 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
- "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+TARGET := iphone:clang:16.5:16.0
 
-<plist version="1.0">
-<dict>
+ARCHS = arm64 arm64e
+THEOS_PACKAGE_SCHEME = roothide
 
-    <key>entry</key>
-    <dict>
+include $(THEOS)/makefiles/common.mk
 
-        <key>bundle</key>
-        <string>SleepModePrefs</string>
 
-        <key>cell</key>
-        <string>PSLinkCell</string>
+BUNDLE_NAME = SleepModePrefs
 
-        <key>detail</key>
-        <string>SleepModePrefsListController</string>
+SleepModePrefs_FILES = \
+    SleepModePrefs.m
 
-        <key>isController</key>
-        <true/>
+SleepModePrefs_CFLAGS = \
+    -fobjc-arc \
+    -Wno-deprecated-declarations
 
-        <key>label</key>
-        <string>SleepMode</string>
+SleepModePrefs_FRAMEWORKS = \
+    UIKit \
+    Foundation
 
-        <key>icon</key>
-        <string>icon.png</string>
+SleepModePrefs_PRIVATE_FRAMEWORKS = \
+    Preferences
 
-    </dict>
+SleepModePrefs_INSTALL_PATH = \
+    /Library/PreferenceBundles
 
-</dict>
-</plist>
+SleepModePrefs_RESOURCE_DIRS = \
+    Resources
+
+
+include $(THEOS_MAKE_PATH)/bundle.mk
+include $(THEOS_MAKE_PATH)/package.mk

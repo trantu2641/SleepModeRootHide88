@@ -606,47 +606,53 @@ jobs:
           echo "CLEAN PREFS"
           echo "================================"
 
-          make -C SleepModePrefs clean
+          make -C SleepModePrefs clean || true
 
           echo ""
           echo "================================"
-          echo "BUILD PREFS PACKAGE"
+          echo "BUILD AND STAGE PREFS BUNDLE"
           echo "================================"
 
-          make -C SleepModePrefs package FINALPACKAGE=1 THEOS_PACKAGE_SCHEME=roothide
+          # SleepModePrefs is a PreferenceBundle, not a standalone Debian package.
+          # It has no DEBIAN/control, so "make package" is intentionally NOT used.
+          make -C SleepModePrefs stage THEOS_PACKAGE_SCHEME=roothide
 
-          PREFS_DEB="$(
-            find SleepModePrefs/packages \
-              -maxdepth 1 \
-              -type f \
-              -name "*.deb" \
-              | head -n 1
+          PREFS_BUNDLE="$(
+            find SleepModePrefs -type d \
+              -path '*/Library/PreferenceBundles/SleepModePrefs.bundle' \
+              -print -quit
           )"
 
-          if [ -z "$PREFS_DEB" ] || [ ! -f "$PREFS_DEB" ]; then
-            echo "ERROR: SleepModePrefs .deb was not generated."
+          if [ -z "$PREFS_BUNDLE" ]; then
+            echo "ERROR: SleepModePrefs.bundle was not produced."
+            find SleepModePrefs -type d -name "SleepModePrefs.bundle" -print || true
             exit 1
           fi
 
-          echo "Prefs package: $PREFS_DEB"
+          test -f "$PREFS_BUNDLE/Root.plist"
+          test -f "$PREFS_BUNDLE/icon.png"
 
-          echo ""
-          echo "================================"
-          echo "EXTRACT PREFS PACKAGE"
-          echo "================================"
+          rm -rf /tmp/sleepmode-prefs-stage
+          mkdir -p /tmp/sleepmode-prefs-stage/Library/PreferenceBundles
+          mkdir -p /tmp/sleepmode-prefs-stage/Library/PreferenceLoader/Preferences
+
+          cp -R "$PREFS_BUNDLE" \
+            /tmp/sleepmode-prefs-stage/Library/PreferenceBundles/SleepModePrefs.bundle
+
+          cp SleepModePrefs/entry.plist \
+            /tmp/sleepmode-prefs-stage/Library/PreferenceLoader/Preferences/SleepModePrefs.plist
 
           rm -rf /tmp/sleepmode-prefs
           mkdir -p /tmp/sleepmode-prefs
-
-          dpkg-deb -x "$PREFS_DEB" /tmp/sleepmode-prefs
+          cp -a /tmp/sleepmode-prefs-stage/. /tmp/sleepmode-prefs/
 
           if [ ! -d "/tmp/sleepmode-prefs/Library/PreferenceBundles/SleepModePrefs.bundle" ]; then
-            echo "ERROR: SleepModePrefs.bundle missing from prefs package."
+            echo "ERROR: SleepModePrefs.bundle missing from staged files."
             exit 1
           fi
 
           if [ ! -f "/tmp/sleepmode-prefs/Library/PreferenceLoader/Preferences/SleepModePrefs.plist" ]; then
-            echo "ERROR: SleepModePrefs.plist missing from prefs package."
+            echo "ERROR: SleepModePrefs.plist missing from staged files."
             exit 1
           fi
 

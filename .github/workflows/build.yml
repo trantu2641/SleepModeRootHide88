@@ -615,19 +615,26 @@ jobs:
 
           # SleepModePrefs is a PreferenceBundle, not a standalone Debian package.
           # It has no DEBIAN/control, so "make package" is intentionally NOT used.
-          make -C SleepModePrefs stage THEOS_PACKAGE_SCHEME=roothide
+          # Build the PreferenceBundle only.
+          # Do NOT use the Theos "stage" target here because bundle.mk +
+          # package.mk can enter Debian staging/package logic and fail when
+          # this project is intentionally not a standalone Debian package.
+          make -C SleepModePrefs THEOS_PACKAGE_SCHEME=roothide
 
           PREFS_BUNDLE="$(
-            find SleepModePrefs -type d \
-              -path '*/Library/PreferenceBundles/SleepModePrefs.bundle' \
-              -print -quit
+            find SleepModePrefs/.theos SleepModePrefs/obj SleepModePrefs -type d \
+              -name 'SleepModePrefs.bundle' \
+              -print 2>/dev/null | head -n 1
           )"
 
           if [ -z "$PREFS_BUNDLE" ]; then
             echo "ERROR: SleepModePrefs.bundle was not produced."
-            find SleepModePrefs -type d -name "SleepModePrefs.bundle" -print || true
+            echo "Searching all generated PreferenceBundle directories:"
+            find SleepModePrefs -type d -name '*.bundle' -print || true
             exit 1
           fi
+
+          echo "Found PreferenceBundle: $PREFS_BUNDLE"
 
           test -f "$PREFS_BUNDLE/Root.plist"
           test -f "$PREFS_BUNDLE/icon.png"

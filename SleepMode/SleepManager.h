@@ -13,6 +13,7 @@
 - (void)resetTimer;
 - (void)userDidInteract;
 
+- (void)terminateUserApplications;
 - (void)enterSleepMode;
 
 @end

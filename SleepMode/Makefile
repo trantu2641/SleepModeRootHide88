@@ -1,7 +1,3 @@
-##################################################
-# GLOBAL CONFIGURATION
-##################################################
-
 TARGET := iphone:clang:16.5:16.0
 
 ARCHS = arm64 arm64e
@@ -11,96 +7,51 @@ THEOS_PACKAGE_SCHEME = roothide
 include $(THEOS)/makefiles/common.mk
 
 
-##################################################
-# MAIN TWEAK
-##################################################
-
 TWEAK_NAME = SleepMode
 
 SleepMode_FILES = \
     Tweak.xm \
-    SleepManager.m \
-    SleepControlCenter.m
+    SleepManager.m
 
 SleepMode_CFLAGS = \
     -fobjc-arc \
-    -Wno-unused-function \
-    -Wno-deprecated-declarations
+    -Wno-deprecated-declarations \
+    -Wno-unused-function
 
 SleepMode_FRAMEWORKS = \
     UIKit \
-    Foundation \
-    CoreFoundation
+    Foundation
 
 SleepMode_PRIVATE_FRAMEWORKS = \
     SpringBoardUI \
-    BackBoardServices \
-    FrontBoardServices
+    BackBoardServices
 
 
-##################################################
-# CONTROL CENTER MODULE
-##################################################
+BUNDLE_NAME = SleepModePrefs
 
-BUNDLE_NAME = SleepModeModule
+SleepModePrefs_BUNDLE_EXTENSION = bundle
 
-SleepModeModule_BUNDLE_EXTENSION = bundle
+SleepModePrefs_FILES = \
+    ../SleepModePrefs/SleepModePrefs.m
 
-SleepModeModule_FILES = \
-    SleepModeModule.m
-
-SleepModeModule_CFLAGS = \
+SleepModePrefs_CFLAGS = \
     -fobjc-arc \
     -Wno-deprecated-declarations
 
-SleepModeModule_FRAMEWORKS = \
+SleepModePrefs_FRAMEWORKS = \
     UIKit \
     Foundation
 
-SleepModeModule_INSTALL_PATH = \
-    /Library/ControlCenter/Bundles
+SleepModePrefs_PRIVATE_FRAMEWORKS = \
+    Preferences
 
-SleepModeModule_BUNDLE_RESOURCE_DIRS = \
-    ../ControlCenter/SleepModeModule.bundle
+SleepModePrefs_INSTALL_PATH = \
+    /Library/PreferenceBundles
 
+SleepModePrefs_RESOURCE_DIRS = \
+    ../SleepModePrefs
 
-##################################################
-# CONTROL CENTER PROVIDER
-##################################################
-
-BUNDLE_NAME += SleepModeProvider
-
-SleepModeProvider_BUNDLE_EXTENSION = bundle
-
-SleepModeProvider_FILES = \
-    ../SleepModeProvider/SleepModeProvider.m
-
-SleepModeProvider_CFLAGS = \
-    -fobjc-arc \
-    -Wno-deprecated-declarations
-
-SleepModeProvider_FRAMEWORKS = \
-    UIKit \
-    Foundation
-
-SleepModeProvider_INSTALL_PATH = \
-    /Library/ControlCenter/CCSupport_Providers
-
-SleepModeProvider_BUNDLE_RESOURCE_DIRS = \
-    ../ControlCenter/SleepModeProvider.bundle
-
-
-##################################################
-# BUILD
-##################################################
 
 include $(THEOS_MAKE_PATH)/tweak.mk
-
 include $(THEOS_MAKE_PATH)/bundle.mk
-
-
-##################################################
-# PACKAGE
-##################################################
-
 include $(THEOS_MAKE_PATH)/package.mk

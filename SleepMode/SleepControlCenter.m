@@ -47,21 +47,18 @@ NSString * const
 
     if (self) {
 
-        _sleepManager =
+        self.sleepManager =
             [SleepManager sharedInstance];
 
         /*
-         * Lấy trạng thái hiện tại từ SleepManager.
-         *
-         * Nếu sau này có Preferences,
-         * phần này sẽ được đổi thành đọc
-         * từ SleepPreferences.
+         * Đồng bộ trạng thái ban đầu
+         * từ SleepManager.
          */
         self.enabled =
-            _sleepManager.enabled;
+            self.sleepManager.enabled;
 
         self.timeout =
-            _sleepManager.timeout;
+            self.sleepManager.timeout;
     }
 
     return self;
@@ -96,10 +93,10 @@ NSString * const
     if (enabled) {
 
         /*
-         * Khi bật:
+         * Bật SleepMode:
          *
-         * 1. Reset timer
-         * 2. Bắt đầu đếm
+         * reset timer
+         * rồi bắt đầu đếm.
          */
         [self.sleepManager resetTimer];
 
@@ -108,9 +105,9 @@ NSString * const
     } else {
 
         /*
-         * Khi tắt:
+         * Tắt SleepMode:
          *
-         * Dừng hoàn toàn timer.
+         * dừng timer hoàn toàn.
          */
         [self.sleepManager stop];
     }
@@ -176,8 +173,8 @@ NSString * const
 
 
     /*
-     * Đổi thời gian thì bắt đầu
-     * lại từ 0 giây.
+     * Đổi timeout thì reset bộ đếm
+     * về 0 giây.
      */
     [self.sleepManager resetTimer];
 

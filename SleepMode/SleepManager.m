@@ -4,6 +4,7 @@
 #import <objc/message.h>
 #import <objc/runtime.h>
 
+
 static NSString * const SMPreferencesDomain =
     @"com.trantu.sleepmode";
 
@@ -19,7 +20,29 @@ static NSString * const SMSettingsChangedNotification =
 static NSString * const SMTouchNotification =
     @"com.trantu.sleepmode.touch";
 
+
 static SleepManager *gSharedManager = nil;
+
+
+/*
+ * Khai báo callback trước khi SleepManager sử dụng.
+ */
+static void SMSettingsChangedCallback(
+    CFNotificationCenterRef center,
+    void *observer,
+    CFStringRef name,
+    const void *object,
+    CFDictionaryRef userInfo
+);
+
+static void SMTouchCallback(
+    CFNotificationCenterRef center,
+    void *observer,
+    CFStringRef name,
+    const void *object,
+    CFDictionaryRef userInfo
+);
+
 
 @interface SleepManager ()
 
@@ -30,6 +53,7 @@ static SleepManager *gSharedManager = nil;
 
 
 @implementation SleepManager
+
 
 + (instancetype)sharedInstance
 {
@@ -54,6 +78,9 @@ static SleepManager *gSharedManager = nil;
 
         [self loadPreferences];
 
+        /*
+         * Nhận thay đổi từ Settings ngay lập tức.
+         */
         CFNotificationCenterAddObserver(
             CFNotificationCenterGetDarwinNotifyCenter(),
             (__bridge const void *)(self),
@@ -63,6 +90,9 @@ static SleepManager *gSharedManager = nil;
             CFNotificationSuspensionBehaviorDeliverImmediately
         );
 
+        /*
+         * Giữ notification touch hiện tại.
+         */
         CFNotificationCenterAddObserver(
             CFNotificationCenterGetDarwinNotifyCenter(),
             (__bridge const void *)(self),
@@ -97,7 +127,9 @@ static SleepManager *gSharedManager = nil;
     }
 
     if ([defaults objectForKey:SMTimeoutKey] != nil) {
-        NSTimeInterval value = [defaults doubleForKey:SMTimeoutKey];
+
+        NSTimeInterval value =
+            [defaults doubleForKey:SMTimeoutKey];
 
         if (value >= 60.0) {
             self.timeout = value;
@@ -108,6 +140,14 @@ static SleepManager *gSharedManager = nil;
 
 - (void)reloadPreferences
 {
+    /*
+     * Quan trọng:
+     * đổi Settings không cần respring.
+     *
+     * Timer cũ bị hủy,
+     * đọc lại giá trị mới,
+     * sau đó tạo timer mới.
+     */
     [self stop];
 
     [self loadPreferences];
@@ -203,19 +243,17 @@ static SleepManager *gSharedManager = nil;
     self.timer = nil;
 
     /*
-     * Giữ đúng thứ tự:
+     * GIỮ NGUYÊN THỨ TỰ CŨ:
      *
      * 1. Đóng app
-     * 2. Khóa máy
+     * 2. Chờ 0.15 giây
+     * 3. Khóa máy
      */
     [self terminateUserApps];
 
-    /*
-     * Cho SpringBoard một nhịp để xử lý việc terminate
-     * trước khi khóa màn hình.
-     */
     dispatch_after(
-        dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.15 * NSEC_PER_SEC)),
+        dispatch_time(DISPATCH_TIME_NOW,
+                      (int64_t)(0.15 * NSEC_PER_SEC)),
         dispatch_get_main_queue(),
         ^{
             if (self.enabled) {
@@ -227,6 +265,10 @@ static SleepManager *gSharedManager = nil;
 
 
 #pragma mark - Terminate applications
+
+/*
+ * GIỮ NGUYÊN CƠ CHẾ ĐÓNG APP CỦA BẢN CŨ.
+ */
 
 - (void)terminateUserApps
 {
@@ -331,25 +373,16 @@ static SleepManager *gSharedManager = nil;
                     continue;
                 }
 
-                /*
-                 * Không đụng vào SpringBoard.
-                 */
                 if ([bundleIdentifier
                      isEqualToString:@"com.apple.springboard"]) {
                     continue;
                 }
 
-                /*
-                 * Không đóng Settings.
-                 */
                 if ([bundleIdentifier
                      isEqualToString:@"com.apple.Preferences"]) {
                     continue;
                 }
 
-                /*
-                 * Không đóng các tiến trình hệ thống quan trọng.
-                 */
                 if ([bundleIdentifier
                      hasPrefix:@"com.apple.SafariViewService"]) {
                     continue;
@@ -360,10 +393,6 @@ static SleepManager *gSharedManager = nil;
                     continue;
                 }
 
-                /*
-                 * Đây là selector mà binary SleepMode 1.1.0
-                 * của bạn đang sử dụng.
-                 */
                 ((void (*)(id, SEL, id, NSInteger, BOOL))
                     objc_msgSend)(
                         systemService,
@@ -378,7 +407,8 @@ static SleepManager *gSharedManager = nil;
     }
     @catch (NSException *exception) {
 
-        NSLog(@"[SleepMode] terminate exception: %@", exception);
+        NSLog(@"[SleepMode] terminate exception: %@",
+              exception);
 
     }
 
@@ -387,6 +417,10 @@ static SleepManager *gSharedManager = nil;
 
 
 #pragma mark - Lock
+
+/*
+ * GIỮ NGUYÊN CƠ CHẾ KHÓA MÁY.
+ */
 
 - (void)lockDevice
 {
@@ -433,9 +467,6 @@ static SleepManager *gSharedManager = nil;
     }
 
 
-    /*
-     * Fallback giống hướng cũ của tweak.
-     */
     @try {
 
         UIApplication *application =

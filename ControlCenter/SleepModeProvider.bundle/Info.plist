@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+ "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+
+<plist version="1.0">
+<dict>
+
+    <key>CFBundleIdentifier</key>
+    <string>com.trantu.sleepmode.provider</string>
+
+    <key>CFBundleName</key>
+    <string>Chế độ ngủ</string>
+
+    <key>CFBundleDisplayName</key>
+    <string>Chế độ ngủ</string>
+
+    <key>CFBundleExecutable</key>
+    <string>SleepModeProvider</string>
+
+    <key>CFBundlePackageType</key>
+    <string>BNDL</string>
+
+    <key>CFBundleVersion</key>
+    <string>1.3.0</string>
+
+    <key>CFBundleShortVersionString</key>
+    <string>1.3.0</string>
+
+    <key>NSPrincipalClass</key>
+    <string>SleepModeProvider</string>
+
+    <key>MinimumOSVersion</key>
+    <string>16.0</string>
+
+    <key>CCSModuleSize</key>
+    <dict>
+
+        <key>Portrait</key>
+        <dict>
+            <key>Width</key>
+            <integer>2</integer>
+
+            <key>Height</key>
+            <integer>2</integer>
+        </dict>
+
+        <key>Landscape</key>
+        <dict>
+            <key>Width</key>
+            <integer>2</integer>
+
+            <key>Height</key>
+            <integer>2</integer>
+        </dict>
+
+    </dict>
+
+</dict>
+</plist>

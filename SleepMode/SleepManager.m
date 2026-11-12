@@ -105,7 +105,7 @@ static void SleepModeTouchCallback(
          * 3600.0
          * 7200.0
          */
-        _timeout = 60.0;
+        _timeout = 15.0;
 
         _lastInteraction =
             CFAbsoluteTimeGetCurrent();

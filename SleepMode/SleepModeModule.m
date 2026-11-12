@@ -1,342 +1,302 @@
-
 #import <Foundation/Foundation.h>
 #import <UIKit/UIKit.h>
 
-#pragma mark - Control Center private interface
+#pragma mark - Private Control Center interfaces
 
-@interface CCUIToggleModule : NSObject
+@interface CCUIContentModuleContext : NSObject
+- (void)requestExpandModule;
+- (void)requestDismissModule;
+- (void)setModule:(id)module;
 @end
 
-@interface SleepModeModule : CCUIToggleModule
-- (BOOL)isSelected;
-- (void)setSelected:(BOOL)selected;
-- (NSString *)identifier;
-- (NSString *)title;
-- (void)setTitle:(NSString *)title;
-- (UIImage *)iconImage;
-- (UIImage *)selectedIconImage;
-- (NSString *)iconGlyph;
-- (NSString *)selectedIconGlyph;
-- (void)setSelectedGlyphColor:(UIColor *)color;
-- (BOOL)hasContent;
-- (UIViewController *)contentViewController;
-- (void)handleTap;
-- (void)handleLongPress;
+@interface CCUIContentModule : NSObject
 @end
+
+#pragma mark - Content View Controller
+
+@interface SleepModeContentViewController : UIViewController
+@property(nonatomic, assign) BOOL enabled;
+@property(nonatomic, strong) UIButton *button;
+@end
+
+#pragma mark - Module
+
+@interface SleepModeModule : CCUIContentModule
+
+@property(nonatomic, strong)
+SleepModeContentViewController *viewController;
+
+@property(nonatomic, strong)
+id contentModuleContext;
+
+@end
+
 
 #pragma mark - Constants
 
-static NSString * const SMEnabledKey = @"SleepModeEnabled";
-static NSString * const SMTimeoutKey = @"SleepModeTimeout";
+static NSString * const SleepModeEnabledKey =
+    @"SleepModeEnabled";
 
-static NSString * const SMCommandNotification =
+static NSString * const SleepModeTimeoutKey =
+    @"SleepModeTimeout";
+
+static NSString * const SleepModeCommandNotification =
     @"com.trantu.sleepmode.command";
 
-static NSString * const SMStateChangedNotification =
+static NSString * const SleepModeStateChangedNotification =
     @"com.trantu.sleepmode.stateChanged";
 
-static NSString * const SMModuleIdentifier =
-    @"com.trantu.sleepmode.module";
 
 #pragma mark - Settings
 
-static BOOL SMIsEnabled(void)
+static BOOL SleepModeIsEnabled(void)
 {
     return [[NSUserDefaults standardUserDefaults]
-            boolForKey:SMEnabledKey];
+            boolForKey:SleepModeEnabledKey];
 }
 
-static NSTimeInterval SMCurrentTimeout(void)
+static NSTimeInterval SleepModeTimeout(void)
 {
     NSTimeInterval timeout =
         [[NSUserDefaults standardUserDefaults]
-            doubleForKey:SMTimeoutKey];
+            doubleForKey:SleepModeTimeoutKey];
 
-    return timeout > 0.0 ? timeout : 15.0;
+    if (timeout <= 0.0)
+        timeout = 15.0;
+
+    return timeout;
 }
 
-static void SMSetEnabled(BOOL enabled)
+static void SleepModeSetEnabled(BOOL enabled)
 {
     NSUserDefaults *defaults =
         [NSUserDefaults standardUserDefaults];
 
-    [defaults setBool:enabled forKey:SMEnabledKey];
+    [defaults setBool:enabled
+               forKey:SleepModeEnabledKey];
+
     [defaults synchronize];
 
-    [[NSNotificationCenter defaultCenter]
-        postNotificationName:SMCommandNotification
-        object:nil
-        userInfo:@{@"enabled": @(enabled)}];
+    NSDictionary *info = @{
+        @"enabled": @(enabled)
+    };
 
     [[NSNotificationCenter defaultCenter]
-        postNotificationName:SMStateChangedNotification
+        postNotificationName:SleepModeCommandNotification
+        object:nil
+        userInfo:info];
+
+    [[NSNotificationCenter defaultCenter]
+        postNotificationName:SleepModeStateChangedNotification
         object:nil];
 }
 
-static void SMSetTimeout(NSTimeInterval timeout)
+static void SleepModeSetTimeout(NSTimeInterval timeout)
 {
-    if (timeout < 1.0) timeout = 1.0;
-    if (timeout > 86400.0) timeout = 86400.0;
+    if (timeout < 1.0)
+        timeout = 1.0;
 
     NSUserDefaults *defaults =
         [NSUserDefaults standardUserDefaults];
 
-    [defaults setDouble:timeout forKey:SMTimeoutKey];
+    [defaults setDouble:timeout
+                 forKey:SleepModeTimeoutKey];
+
     [defaults synchronize];
 
-    [[NSNotificationCenter defaultCenter]
-        postNotificationName:SMCommandNotification
-        object:nil
-        userInfo:@{@"timeout": @(timeout)}];
+    NSDictionary *info = @{
+        @"timeout": @(timeout)
+    };
 
     [[NSNotificationCenter defaultCenter]
-        postNotificationName:SMStateChangedNotification
+        postNotificationName:SleepModeCommandNotification
+        object:nil
+        userInfo:info];
+
+    [[NSNotificationCenter defaultCenter]
+        postNotificationName:SleepModeStateChangedNotification
         object:nil];
 }
 
-#pragma mark - Safe view controller lookup
 
-static UIWindow *SMFindActiveWindow(void)
+#pragma mark - Content View Controller
+
+@implementation SleepModeContentViewController
+
+- (void)viewDidLoad
 {
-    UIApplication *application =
-        [UIApplication sharedApplication];
+    [super viewDidLoad];
 
-    if (!application) return nil;
+    self.view.backgroundColor =
+        [UIColor clearColor];
 
-    UIWindow *fallback = nil;
+    self.enabled =
+        SleepModeIsEnabled();
 
-    if (@available(iOS 13.0, *)) {
-        for (UIScene *scene in application.connectedScenes) {
-            if (![scene isKindOfClass:[UIWindowScene class]])
-                continue;
+    UIButton *button =
+        [UIButton buttonWithType:UIButtonTypeSystem];
 
-            UIWindowScene *windowScene = (UIWindowScene *)scene;
+    button.translatesAutoresizingMaskIntoConstraints = NO;
 
-            if (windowScene.activationState !=
-                UISceneActivationStateForegroundActive)
-                continue;
+    UIImage *image =
+        [UIImage systemImageNamed:@"moon.fill"];
 
-            for (UIWindow *window in windowScene.windows) {
-                if (window.hidden || window.alpha <= 0.01)
-                    continue;
+    [button setImage:image
+            forState:UIControlStateNormal];
 
-                if (window.isKeyWindow)
-                    return window;
+    button.tintColor =
+        [UIColor whiteColor];
 
-                if (!fallback)
-                    fallback = window;
-            }
-        }
-    }
+    button.layer.cornerRadius = 12.0;
 
-    if (fallback)
-        return fallback;
+    button.backgroundColor =
+        [UIColor colorWithWhite:1.0
+                         alpha:0.12];
 
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wdeprecated-declarations"
-    for (UIWindow *window in application.windows) {
-        if (window.hidden || window.alpha <= 0.01)
-            continue;
+    [button addTarget:self
+               action:@selector(toggleSleepMode)
+     forControlEvents:UIControlEventTouchUpInside];
 
-        if (window.isKeyWindow)
-            return window;
+    [self.view addSubview:button];
 
-        if (!fallback)
-            fallback = window;
-    }
-#pragma clang diagnostic pop
+    [NSLayoutConstraint activateConstraints:@[
+        [button.leadingAnchor
+            constraintEqualToAnchor:self.view.leadingAnchor
+                           constant:8.0],
 
-    return fallback;
+        [button.trailingAnchor
+            constraintEqualToAnchor:self.view.trailingAnchor
+                           constant:-8.0],
+
+        [button.topAnchor
+            constraintEqualToAnchor:self.view.topAnchor
+                           constant:8.0],
+
+        [button.bottomAnchor
+            constraintEqualToAnchor:self.view.bottomAnchor
+                           constant:-8.0]
+    ]];
+
+    self.button = button;
+
+    [self updateAppearance];
 }
 
-static UIViewController *SMGetTopController(
-    UIViewController *controller)
+- (void)viewWillAppear:(BOOL)animated
 {
-    if (!controller) return nil;
+    [super viewWillAppear:animated];
 
-    if (controller.presentedViewController &&
-        !controller.presentedViewController.isBeingDismissed) {
-        return SMGetTopController(
-            controller.presentedViewController
-        );
-    }
+    self.enabled =
+        SleepModeIsEnabled();
 
-    if ([controller isKindOfClass:
-         [UINavigationController class]]) {
-        UINavigationController *nav =
-            (UINavigationController *)controller;
-
-        if (nav.visibleViewController)
-            return SMGetTopController(nav.visibleViewController);
-    }
-
-    if ([controller isKindOfClass:
-         [UITabBarController class]]) {
-        UITabBarController *tabs =
-            (UITabBarController *)controller;
-
-        if (tabs.selectedViewController)
-            return SMGetTopController(tabs.selectedViewController);
-    }
-
-    return controller;
+    [self updateAppearance];
 }
 
-#pragma mark - Timeout menu
-
-static void SMShowTimeoutMenu(void)
+- (void)toggleSleepMode
 {
-    dispatch_async(dispatch_get_main_queue(), ^{
-        UIWindow *window = SMFindActiveWindow();
+    BOOL enabled =
+        !SleepModeIsEnabled();
 
-        if (!window || !window.rootViewController)
-            return;
+    SleepModeSetEnabled(enabled);
 
-        UIViewController *controller =
-            SMGetTopController(window.rootViewController);
+    self.enabled = enabled;
 
-        if (!controller ||
-            controller.isBeingDismissed ||
-            controller.presentedViewController) {
-            return;
-        }
-
-        UIAlertController *alert =
-            [UIAlertController
-                alertControllerWithTitle:@"Thời gian tự khóa"
-                message:@"Chọn thời gian chờ"
-                preferredStyle:UIAlertControllerStyleActionSheet];
-
-        NSArray *items = @[
-            @{@"title": @"15 giây", @"value": @15.0},
-            @{@"title": @"1 phút",   @"value": @60.0},
-            @{@"title": @"5 phút",  @"value": @300.0},
-            @{@"title": @"15 phút", @"value": @900.0},
-            @{@"title": @"30 phút", @"value": @1800.0},
-            @{@"title": @"1 giờ",   @"value": @3600.0},
-            @{@"title": @"2 giờ",   @"value": @7200.0}
-        ];
-
-        NSTimeInterval current = SMCurrentTimeout();
-
-        for (NSDictionary *item in items) {
-            NSString *title = item[@"title"];
-            NSNumber *value = item[@"value"];
-
-            if (fabs(current - value.doubleValue) < 0.5) {
-                title = [NSString stringWithFormat:@"✓ %@", title];
-            }
-
-            [alert addAction:
-                [UIAlertAction
-                    actionWithTitle:title
-                    style:UIAlertActionStyleDefault
-                    handler:^(__unused UIAlertAction *action) {
-                        SMSetTimeout(value.doubleValue);
-                    }]
-            ];
-        }
-
-        [alert addAction:
-            [UIAlertAction
-                actionWithTitle:@"Hủy"
-                style:UIAlertActionStyleCancel
-                handler:nil]
-        ];
-
-        UIPopoverPresentationController *popover =
-            alert.popoverPresentationController;
-
-        if (popover) {
-            popover.sourceView = window;
-            popover.sourceRect = CGRectMake(
-                CGRectGetMidX(window.bounds),
-                CGRectGetMidY(window.bounds),
-                1.0,
-                1.0
-            );
-            popover.permittedArrowDirections =
-                UIPopoverArrowDirectionAny;
-        }
-
-        [controller presentViewController:alert
-                                 animated:YES
-                               completion:nil];
-    });
+    [self updateAppearance];
 }
+
+- (void)updateAppearance
+{
+    if (!self.button)
+        return;
+
+    BOOL enabled =
+        SleepModeIsEnabled();
+
+    UIImage *image =
+        [UIImage systemImageNamed:
+            enabled ? @"moon.fill" : @"moon"];
+
+    [self.button setImage:image
+                  forState:UIControlStateNormal];
+
+    self.button.tintColor =
+        enabled
+        ? [UIColor whiteColor]
+        : [UIColor colorWithWhite:1.0 alpha:0.75];
+}
+
+@end
+
 
 #pragma mark - SleepModeModule
 
 @implementation SleepModeModule
 
-- (BOOL)isSelected
+- (instancetype)init
 {
-    return SMIsEnabled();
+    self = [super init];
+
+    if (self)
+    {
+        _viewController =
+            [[SleepModeContentViewController alloc]
+                init];
+    }
+
+    return self;
 }
 
-- (void)setSelected:(BOOL)selected
+
+#pragma mark - Required Control Center state
+
+- (BOOL)isContentModuleEnabled
 {
-    SMSetEnabled(selected);
+    return SleepModeIsEnabled();
 }
 
-- (NSString *)identifier
+- (void)setContentModuleEnabled:(BOOL)enabled
 {
-    return SMModuleIdentifier;
+    SleepModeSetEnabled(enabled);
+
+    [self.viewController
+        updateAppearance];
 }
 
-- (NSString *)title
+
+#pragma mark - Content controller
+
+- (UIViewController *)
+    contentViewController
 {
-    return @"Chế độ ngủ";
+    if (!_viewController)
+    {
+        _viewController =
+            [[SleepModeContentViewController alloc]
+                init];
+    }
+
+    return _viewController;
 }
 
-- (void)setTitle:(NSString *)title
+
+#pragma mark - Context
+
+- (void)setContentModuleContext:
+    (id)context
 {
-    (void)title;
+    _contentModuleContext = context;
 }
 
-- (UIImage *)iconImage
-{
-    return [UIImage systemImageNamed:@"moon.fill"];
-}
 
-- (UIImage *)selectedIconImage
-{
-    return [UIImage systemImageNamed:@"moon.fill"];
-}
+#pragma mark - Refresh
 
-- (NSString *)iconGlyph
+- (void)refreshState
 {
-    return @"moon.fill";
-}
+    self.viewController.enabled =
+        SleepModeIsEnabled();
 
-- (NSString *)selectedIconGlyph
-{
-    return @"moon.fill";
-}
-
-- (void)setSelectedGlyphColor:(UIColor *)color
-{
-    (void)color;
-}
-
-- (BOOL)hasContent
-{
-    return NO;
-}
-
-- (UIViewController *)contentViewController
-{
-    return nil;
-}
-
-- (void)handleTap
-{
-    SMSetEnabled(!SMIsEnabled());
-}
-
-- (void)handleLongPress
-{
-    SMShowTimeoutMenu();
+    [self.viewController
+        updateAppearance];
 }
 
 @end

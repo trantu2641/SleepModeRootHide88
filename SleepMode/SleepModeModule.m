@@ -20,10 +20,11 @@ static NSString * const
 static id SleepControlCenterInstance(void)
 {
     Class cls =
-        NSClassFromString(kSleepControlCenterClassName);
+        NSClassFromString(
+            kSleepControlCenterClassName);
 
     if (cls == Nil) {
-        NSLog(@"[SleepModeModule] SleepControlCenter class not found");
+        NSLog(@"[Chế độ ngủ] Không tìm thấy SleepControlCenter");
         return nil;
     }
 
@@ -31,7 +32,7 @@ static id SleepControlCenterInstance(void)
         NSSelectorFromString(@"sharedInstance");
 
     if (![cls respondsToSelector:selector]) {
-        NSLog(@"[SleepModeModule] sharedInstance not found");
+        NSLog(@"[Chế độ ngủ] Không tìm thấy sharedInstance");
         return nil;
     }
 
@@ -94,7 +95,7 @@ static void SleepControlCenterToggle(void)
         SleepControlCenterInstance();
 
     if (manager == nil) {
-        NSLog(@"[SleepModeModule] Cannot toggle: manager unavailable");
+        NSLog(@"[Chế độ ngủ] Không thể bật/tắt");
         return;
     }
 
@@ -102,7 +103,7 @@ static void SleepControlCenterToggle(void)
         NSSelectorFromString(@"toggle");
 
     if (![manager respondsToSelector:selector]) {
-        NSLog(@"[SleepModeModule] toggle selector not found");
+        NSLog(@"[Chế độ ngủ] Không tìm thấy toggle");
         return;
     }
 
@@ -120,7 +121,7 @@ static void SleepControlCenterSetTimeout(
         SleepControlCenterInstance();
 
     if (manager == nil) {
-        NSLog(@"[SleepModeModule] Cannot set timeout");
+        NSLog(@"[Chế độ ngủ] Không thể đặt thời gian");
         return;
     }
 
@@ -128,7 +129,7 @@ static void SleepControlCenterSetTimeout(
         NSSelectorFromString(@"setTimeout:");
 
     if (![manager respondsToSelector:selector]) {
-        NSLog(@"[SleepModeModule] setTimeout: not found");
+        NSLog(@"[Chế độ ngủ] Không tìm thấy setTimeout:");
         return;
     }
 
@@ -201,7 +202,7 @@ static void SleepControlCenterSetTimeout(
 
     if (self) {
 
-        NSLog(@"[SleepModeModule] Initializing");
+        NSLog(@"[Chế độ ngủ] Khởi tạo module");
 
         [[NSNotificationCenter defaultCenter]
             addObserver:self
@@ -221,15 +222,11 @@ static void SleepControlCenterSetTimeout(
 }
 
 
-#pragma mark - Context
-
 - (void)setContentModuleContext:(id)context
 {
     _contentModuleContext = context;
 }
 
-
-#pragma mark - Content View Controller
 
 - (UIViewController *)contentViewController
 {
@@ -254,16 +251,17 @@ static void SleepControlCenterSetTimeout(
     BOOL enabled =
         [userInfo[@"enabled"] boolValue];
 
-    dispatch_async(dispatch_get_main_queue(), ^{
+    dispatch_async(
+        dispatch_get_main_queue(),
+        ^{
 
-        if (self.contentViewController != nil) {
+            if (self.contentViewController != nil) {
 
-            [self.contentViewController
-                updateState:enabled];
-        }
-    });
+                [self.contentViewController
+                    updateState:enabled];
+            }
+        });
 }
-
 
 @end
 
@@ -286,7 +284,7 @@ static void SleepControlCenterSetTimeout(
 
 
     /*
-     * Main button
+     * Nút chính
      */
 
     UIButton *button =
@@ -296,7 +294,8 @@ static void SleepControlCenterSetTimeout(
     button.translatesAutoresizingMaskIntoConstraints =
         NO;
 
-    button.layer.cornerRadius = 14.0;
+    button.layer.cornerRadius =
+        14.0;
 
     button.titleLabel.font =
         [UIFont systemFontOfSize:17.0
@@ -313,7 +312,7 @@ static void SleepControlCenterSetTimeout(
 
 
     /*
-     * Timeout label
+     * Nhãn thời gian
      */
 
     UILabel *timeoutLabel =
@@ -333,6 +332,8 @@ static void SleepControlCenterSetTimeout(
         [UIColor colorWithWhite:1.0
                           alpha:0.65];
 
+    timeoutLabel.numberOfLines = 1;
+
     [self.view addSubview:timeoutLabel];
 
     self.timeoutLabel =
@@ -340,7 +341,7 @@ static void SleepControlCenterSetTimeout(
 
 
     /*
-     * Layout
+     * Bố cục
      */
 
     [NSLayoutConstraint activateConstraints:@[
@@ -386,7 +387,7 @@ static void SleepControlCenterSetTimeout(
 
 
     /*
-     * Initial state
+     * Trạng thái ban đầu
      */
 
     BOOL enabled =
@@ -400,7 +401,7 @@ static void SleepControlCenterSetTimeout(
 
 - (void)buttonPressed:(UIButton *)sender
 {
-    NSLog(@"[SleepModeModule] Button pressed");
+    NSLog(@"[Chế độ ngủ] Nhấn nút");
 
     SleepControlCenterToggle();
 
@@ -417,7 +418,8 @@ static void SleepControlCenterSetTimeout(
 {
     [super viewDidAppear:animated];
 
-    BOOL alreadyInstalled = NO;
+    BOOL alreadyInstalled =
+        NO;
 
     for (UIGestureRecognizer *gesture
          in self.view.gestureRecognizers) {
@@ -437,7 +439,8 @@ static void SleepControlCenterSetTimeout(
                 initWithTarget:self
                 action:@selector(handleLongPress:)];
 
-        longPress.minimumPressDuration = 0.5;
+        longPress.minimumPressDuration =
+            0.5;
 
         [self.view addGestureRecognizer:
             longPress];
@@ -454,7 +457,7 @@ static void SleepControlCenterSetTimeout(
         return;
     }
 
-    NSLog(@"[SleepModeModule] Long press");
+    NSLog(@"[Chế độ ngủ] Mở chọn thời gian");
 
     [self showTimeoutMenu];
 }
@@ -467,10 +470,10 @@ static void SleepControlCenterSetTimeout(
     UIAlertController *alert =
         [UIAlertController
             alertControllerWithTitle:
-                @"SleepMode"
-                             message:
-                @"Chọn thời gian tự khóa"
-                      preferredStyle:
+                @"Chế độ ngủ"
+            message:
+                @"Chọn thời gian tự động khóa"
+            preferredStyle:
                 UIAlertControllerStyleActionSheet];
 
 
@@ -525,16 +528,17 @@ static void SleepControlCenterSetTimeout(
         UIAlertAction *action =
             [UIAlertAction
                 actionWithTitle:title
-                         style:UIAlertActionStyleDefault
-                       handler:^(__unused UIAlertAction *action) {
+                style:UIAlertActionStyleDefault
+                handler:^(__unused UIAlertAction *action) {
 
-            NSLog(@"[SleepModeModule] Timeout = %.0f",
-                  timeout);
+            NSLog(
+                @"[Chế độ ngủ] Thời gian = %.0f",
+                timeout);
 
-            SleepControlCenterSetTimeout(timeout);
+            SleepControlCenterSetTimeout(
+                timeout);
 
             [self updateTimeoutLabel];
-
         }];
 
 
@@ -545,8 +549,8 @@ static void SleepControlCenterSetTimeout(
     [alert addAction:
         [UIAlertAction
             actionWithTitle:@"Hủy"
-                     style:UIAlertActionStyleCancel
-                   handler:nil]];
+            style:UIAlertActionStyleCancel
+            handler:nil]];
 
 
     UIViewController *presenter =
@@ -559,10 +563,11 @@ static void SleepControlCenterSetTimeout(
     }
 
 
-    [presenter presentViewController:
-        alert
-                           animated:YES
-                         completion:nil];
+    [presenter
+        presentViewController:
+            alert
+        animated:YES
+        completion:nil];
 }
 
 
@@ -572,22 +577,25 @@ static void SleepControlCenterSetTimeout(
 {
     if (![NSThread isMainThread]) {
 
-        dispatch_async(dispatch_get_main_queue(), ^{
-            [self updateState:enabled];
-        });
+        dispatch_async(
+            dispatch_get_main_queue(),
+            ^{
+                [self updateState:enabled];
+            });
 
         return;
     }
 
 
     NSString *title =
-        enabled ? @"ON" : @"OFF";
+        enabled
+            ? @"Đang bật"
+            : @"Đang tắt";
 
 
-    [self.button setTitle:
-        title
-                  forState:
-                      UIControlStateNormal];
+    [self.button
+        setTitle:title
+        forState:UIControlStateNormal];
 
 
     if (enabled) {
@@ -596,10 +604,11 @@ static void SleepControlCenterSetTimeout(
             [UIColor colorWithWhite:1.0
                               alpha:0.28];
 
-        [self.button setTitleColor:
-            [UIColor whiteColor]
-                          forState:
-                              UIControlStateNormal];
+        [self.button
+            setTitleColor:
+                [UIColor whiteColor]
+            forState:
+                UIControlStateNormal];
 
     } else {
 
@@ -607,11 +616,12 @@ static void SleepControlCenterSetTimeout(
             [UIColor colorWithWhite:0.0
                               alpha:0.18];
 
-        [self.button setTitleColor:
-            [UIColor colorWithWhite:1.0
-                              alpha:0.65]
-                          forState:
-                              UIControlStateNormal];
+        [self.button
+            setTitleColor:
+                [UIColor colorWithWhite:1.0
+                                  alpha:0.65]
+            forState:
+                UIControlStateNormal];
     }
 
 
@@ -637,30 +647,36 @@ static void SleepControlCenterSetTimeout(
                 @"%.0f giây",
                 timeout];
 
-    } else if (timeout < 3600.0) {
+    }
+
+    else if (timeout < 3600.0) {
 
         NSInteger minutes =
-            (NSInteger)round(timeout / 60.0);
+            (NSInteger)round(
+                timeout / 60.0);
 
         text =
             [NSString stringWithFormat:
                 @"%ld phút",
                 (long)minutes];
+    }
 
-    } else {
+    else {
 
         double hours =
             timeout / 3600.0;
 
-        if (fabs(hours -
-                 round(hours)) < 0.01) {
+        if (fabs(
+                hours - round(hours)) < 0.01) {
 
             text =
                 [NSString stringWithFormat:
                     @"%.0f giờ",
                     hours];
 
-        } else {
+        }
+
+        else {
 
             text =
                 [NSString stringWithFormat:
@@ -672,7 +688,7 @@ static void SleepControlCenterSetTimeout(
 
     self.timeoutLabel.text =
         [NSString stringWithFormat:
-            @"Tự khóa sau %@",
+            @"Tự động khóa sau %@",
             text];
 }
 

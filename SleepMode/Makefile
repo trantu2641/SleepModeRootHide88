@@ -5,11 +5,12 @@ THEOS_PACKAGE_SCHEME = roothide
 
 include $(THEOS)/makefiles/common.mk
 
+
 TWEAK_NAME = SleepMode
 
 SleepMode_FILES = \
-    Tweak.xm \
-    SleepManager.m
+    SleepMode/Tweak.xm \
+    SleepMode/SleepManager.m
 
 SleepMode_CFLAGS = \
     -fobjc-arc \
@@ -26,5 +27,30 @@ SleepMode_PRIVATE_FRAMEWORKS = \
     BackBoardServices \
     FrontBoardServices
 
+
+BUNDLE_NAME = SleepModePrefs
+
+SleepModePrefs_FILES = \
+    SleepModePrefs/SleepModePrefs.m
+
+SleepModePrefs_CFLAGS = \
+    -fobjc-arc \
+    -Wno-deprecated-declarations
+
+SleepModePrefs_FRAMEWORKS = \
+    UIKit \
+    Foundation
+
+SleepModePrefs_PRIVATE_FRAMEWORKS = \
+    Preferences
+
+SleepModePrefs_INSTALL_PATH = \
+    /Library/PreferenceBundles
+
+SleepModePrefs_RESOURCE_DIRS = \
+    SleepModePrefs/Resources
+
+
 include $(THEOS_MAKE_PATH)/tweak.mk
+include $(THEOS_MAKE_PATH)/bundle.mk
 include $(THEOS_MAKE_PATH)/package.mk

@@ -1,155 +1,251 @@
+#import <Foundation/Foundation.h>
+#import <UIKit/UIKit.h>
+
 #import "SleepControlCenter.h"
 #import "SleepManager.h"
 
-#import <math.h>
 
-NSString * const
-    SleepControlCenterStateChangedNotification =
-        @"com.trantu.sleepmode.stateChanged";
+#pragma mark - Minimal Control Center Protocol
 
-@interface SleepControlCenter ()
+@protocol CCUIContentModule <NSObject>
 
-@property(nonatomic, strong)
-    SleepManager *sleepManager;
+@optional
+
+- (UIViewController *)contentViewController;
+
+- (UIViewController *)backgroundViewController;
+
+- (void)setContentModuleContext:(id)context;
 
 @end
 
-@implementation SleepControlCenter
 
-+ (instancetype)sharedInstance
-{
-    static SleepControlCenter *sharedInstance = nil;
-    static dispatch_once_t onceToken;
+#pragma mark - SleepMode Module
 
-    dispatch_once(&onceToken, ^{
-        sharedInstance = [[self alloc] init];
-    });
+@interface SleepModeModule : NSObject <CCUIContentModule>
 
-    return sharedInstance;
-}
+@property(nonatomic, strong)
+    id contentModuleContext;
+
+@property(nonatomic, strong)
+    UIViewController *contentViewController;
+
+@end
+
+
+#pragma mark - Content View Controller
+
+@interface SleepModeModuleContentViewController : UIViewController
+
+@property(nonatomic, strong)
+    UIButton *button;
+
+@property(nonatomic, strong)
+    UILabel *label;
+
+@end
+
+
+@implementation SleepModeModule
 
 - (instancetype)init
 {
     self = [super init];
 
     if (self) {
-        self.sleepManager =
-            [SleepManager sharedInstance];
+
+        [[SleepControlCenter sharedInstance]
+            addObserver:self
+            forKeyPath:@"enabled"
+            options:NSKeyValueObservingOptionInitial |
+                    NSKeyValueObservingOptionNew
+            context:NULL];
     }
 
     return self;
 }
 
-#pragma mark - Enabled
-
-- (BOOL)isEnabled
+- (void)dealloc
 {
-    return self.sleepManager.enabled;
+    @try {
+
+        [[SleepControlCenter sharedInstance]
+            removeObserver:self
+            forKeyPath:@"enabled"];
+
+    } @catch (__unused NSException *exception) {
+    }
 }
 
-- (void)setEnabled:(BOOL)enabled
-{
-    BOOL currentEnabled =
-        self.sleepManager.enabled;
+#pragma mark - Control Center Context
 
-    if (currentEnabled == enabled) {
+- (void)setContentModuleContext:(id)context
+{
+    _contentModuleContext = context;
+}
+
+#pragma mark - Content View Controller
+
+- (UIViewController *)contentViewController
+{
+    if (!_contentViewController) {
+
+        _contentViewController =
+            [[SleepModeModuleContentViewController alloc] init];
+    }
+
+    return _contentViewController;
+}
+
+#pragma mark - State
+
+- (void)updateModuleState
+{
+    SleepControlCenter *controlCenter =
+        [SleepControlCenter sharedInstance];
+
+    BOOL enabled = controlCenter.enabled;
+
+    if ([_contentViewController
+            isKindOfClass:[SleepModeModuleContentViewController class]]) {
+
+        SleepModeModuleContentViewController *vc =
+            (SleepModeModuleContentViewController *)_contentViewController;
+
+        [vc updateState:enabled];
+    }
+}
+
+- (void)observeValueForKeyPath:(NSString *)keyPath
+                      ofObject:(id)object
+                        change:(NSDictionary *)change
+                       context:(void *)context
+{
+    if ([keyPath isEqualToString:@"enabled"]) {
+
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [self updateModuleState];
+        });
+
         return;
     }
 
-    self.sleepManager.enabled = enabled;
+    [super observeValueForKeyPath:keyPath
+                         ofObject:object
+                           change:change
+                          context:context];
+}
+
+@end
+
+
+#pragma mark - Content View Controller
+
+@implementation SleepModeModuleContentViewController
+
+- (void)viewDidLoad
+{
+    [super viewDidLoad];
+
+    self.view.backgroundColor =
+        [UIColor clearColor];
+
+    self.view.clipsToBounds = YES;
+
+    UIButton *button =
+        [UIButton buttonWithType:UIButtonTypeSystem];
+
+    button.translatesAutoresizingMaskIntoConstraints = NO;
+
+    button.layer.cornerRadius = 14.0;
+
+    button.titleLabel.font =
+        [UIFont systemFontOfSize:20.0
+                           weight:UIFontWeightSemibold];
+
+    [button addTarget:self
+               action:@selector(buttonPressed:)
+     forControlEvents:UIControlEventTouchUpInside];
+
+    [self.view addSubview:button];
+
+    self.button = button;
+
+    [NSLayoutConstraint activateConstraints:@[
+
+        [button.leadingAnchor
+            constraintEqualToAnchor:self.view.leadingAnchor
+                           constant:6.0],
+
+        [button.trailingAnchor
+            constraintEqualToAnchor:self.view.trailingAnchor
+                           constant:-6.0],
+
+        [button.topAnchor
+            constraintEqualToAnchor:self.view.topAnchor
+                           constant:6.0],
+
+        [button.bottomAnchor
+            constraintEqualToAnchor:self.view.bottomAnchor
+                           constant:-6.0]
+    ]];
+
+    [self updateState:
+        [SleepControlCenter sharedInstance].enabled];
+}
+
+#pragma mark - Button
+
+- (void)buttonPressed:(UIButton *)sender
+{
+    SleepControlCenter *controlCenter =
+        [SleepControlCenter sharedInstance];
+
+    [controlCenter toggle];
+
+    [self updateState:controlCenter.enabled];
+}
+
+#pragma mark - State
+
+- (void)updateState:(BOOL)enabled
+{
+    if (![NSThread isMainThread]) {
+
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [self updateState:enabled];
+        });
+
+        return;
+    }
+
+    NSString *title =
+        enabled ? @"ON" : @"OFF";
+
+    [self.button setTitle:title
+                  forState:UIControlStateNormal];
 
     if (enabled) {
 
-        [self.sleepManager resetTimer];
-        [self.sleepManager start];
+        self.button.backgroundColor =
+            [UIColor colorWithWhite:1.0
+                              alpha:0.25];
+
+        [self.button setTitleColor:
+            [UIColor whiteColor]
+                          forState:UIControlStateNormal];
 
     } else {
 
-        [self.sleepManager stop];
+        self.button.backgroundColor =
+            [UIColor colorWithWhite:0.0
+                              alpha:0.18];
 
+        [self.button setTitleColor:
+            [UIColor colorWithWhite:1.0
+                              alpha:0.65]
+                          forState:UIControlStateNormal];
     }
-
-    [self postStateChanged];
-}
-
-#pragma mark - Enable / Disable
-
-- (void)enable
-{
-    self.enabled = YES;
-}
-
-- (void)disable
-{
-    self.enabled = NO;
-}
-
-- (void)toggle
-{
-    self.enabled = !self.enabled;
-}
-
-#pragma mark - Timeout
-
-- (NSTimeInterval)currentTimeout
-{
-    return self.sleepManager.timeout;
-}
-
-- (void)setTimeout:(NSTimeInterval)timeout
-{
-    if (timeout < 0.0) {
-        timeout = 0.0;
-    }
-
-    NSTimeInterval currentTimeout =
-        self.sleepManager.timeout;
-
-    if (fabs(currentTimeout - timeout) < 0.001) {
-        return;
-    }
-
-    self.sleepManager.timeout = timeout;
-
-    /*
-     * Đổi thời gian thì tính lại từ thời điểm hiện tại.
-     */
-    [self.sleepManager resetTimer];
-
-    [self postStateChanged];
-}
-
-#pragma mark - Timer
-
-- (void)resetTimer
-{
-    [self.sleepManager resetTimer];
-}
-
-#pragma mark - Notification
-
-- (void)postStateChanged
-{
-    NSDictionary *userInfo = @{
-        @"enabled": @(self.enabled),
-        @"timeout": @(self.currentTimeout)
-    };
-
-    [[NSNotificationCenter defaultCenter]
-        postNotificationName:
-            SleepControlCenterStateChangedNotification
-        object:self
-        userInfo:userInfo];
-}
-
-#pragma mark - Description
-
-- (NSString *)description
-{
-    return [NSString stringWithFormat:
-        @"<SleepControlCenter: enabled=%@ timeout=%.1f>",
-        self.enabled ? @"YES" : @"NO",
-        self.currentTimeout];
 }
 
 @end

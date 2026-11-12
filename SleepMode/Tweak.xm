@@ -16,26 +16,28 @@
 {
     %orig;
 
-    NSLog(@"[SleepMode] SpringBoard started");
-
+    /*
+     * Khởi tạo singleton.
+     */
     [SleepManager sharedInstance];
-    [SleepControlCenter sharedInstance];
 
-    NSLog(@"[SleepMode] Control Center initialized");
+    [SleepControlCenter sharedInstance];
 }
 
 
 - (void)sendEvent:(UIEvent *)event
 {
     /*
-     * Bắt touch ở cấp SpringBoard.
+     * Chỉ xử lý TOUCH BEGAN.
      *
-     * Tweak chỉ inject vào SpringBoard nên:
+     * Không xử lý:
      *
-     * - Home Screen vẫn nhận được
-     * - Control Center vẫn nhận được
-     * - Lock Screen không chạy timer
-     * - Không cần inject vào từng app
+     * - Moved
+     * - Stationary
+     * - Ended
+     *
+     * để tránh reset timer hàng chục/hàng trăm lần
+     * trong một thao tác vuốt.
      */
 
     if (event != nil &&
@@ -44,43 +46,27 @@
         NSSet *touches =
             [event allTouches];
 
-        if (touches != nil &&
-            touches.count > 0) {
-
-            BOOL realTouch = NO;
+        if (touches.count > 0) {
 
             for (UITouch *touch in touches) {
 
-                if (touch == nil) {
-                    continue;
-                }
+                if (touch.phase ==
+                    UITouchPhaseBegan) {
 
-                UITouchPhase phase =
-                    touch.phase;
+                    [[SleepManager sharedInstance]
+                        userDidInteract];
 
-                if (phase == UITouchPhaseBegan ||
-                    phase == UITouchPhaseMoved ||
-                    phase == UITouchPhaseEnded ||
-                    phase == UITouchPhaseStationary) {
-
-                    realTouch = YES;
                     break;
                 }
-            }
-
-            if (realTouch) {
-
-                NSLog(@"[SleepMode] User interaction detected");
-
-                [[SleepManager sharedInstance]
-                    userDidInteract];
             }
         }
     }
 
+    /*
+     * Luôn trả event về SpringBoard ngay.
+     */
     %orig;
 }
-
 
 %end
 
@@ -93,8 +79,10 @@
 {
     %orig;
 
-    NSLog(@"[SleepMode] System idle timer reset");
-
+    /*
+     * Hệ thống tự reset idle timer.
+     * Đây cũng được xem là activity.
+     */
     [[SleepManager sharedInstance]
         userDidInteract];
 }
@@ -106,40 +94,31 @@
 
 %hook SBLockScreenManager
 
-/*
- * Được gọi khi hệ thống thực hiện lock.
- */
 - (void)lockFromSource:(int)source
 {
-    NSLog(@"[SleepMode] lockFromSource: %d",
-          source);
-
     %orig;
 
     /*
-     * Dừng timer ngay khi thiết bị bị khóa.
+     * Khi thiết bị khóa:
+     *
+     * - dừng timer
+     * - không tiếp tục đếm
      */
     [[SleepManager sharedInstance]
         deviceDidLock];
 }
 
 
-/*
- * Được gọi sau khi unlock UI.
- */
 - (void)unlockUIFromSource:(int)source
               withOptions:(id)options
 {
-    NSLog(@"[SleepMode] unlockUIFromSource:withOptions:");
-
     %orig;
 
     /*
-     * Sau khi unlock:
+     * Unlock:
      *
-     * - timer bắt đầu lại
-     * - thời gian tính lại từ 0
-     * - không dùng thời gian trước khi khóa
+     * - bắt đầu chu kỳ mới
+     * - timer tính từ 0
      */
     [[SleepManager sharedInstance]
         deviceDidUnlock];
@@ -157,23 +136,19 @@
             bundleIdentifier];
 
     /*
-     * Chỉ chạy trong SpringBoard.
+     * CHỈ inject vào SpringBoard.
+     *
+     * Không inject vào app người dùng.
      */
     if ([bundleID
             isEqualToString:
                 @"com.apple.springboard"]) {
-
-        NSLog(@"[SleepMode] Injected into SpringBoard");
 
         %init(SleepModeGroup);
 
         [SleepManager sharedInstance];
 
         [SleepControlCenter sharedInstance];
-
-        NSLog(@"[SleepMode] Core + Control Center ready");
-
-        return;
     }
 }
 

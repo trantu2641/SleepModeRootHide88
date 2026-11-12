@@ -1,13 +1,16 @@
 #import "SleepControlCenter.h"
 #import "SleepManager.h"
 
-NSString * const SleepControlCenterStateChangedNotification =
+NSString * const SleepModeCommandNotification =
+    @"com.trantu.sleepmode.command";
+
+NSString * const SleepModeStateChangedNotification =
     @"com.trantu.sleepmode.stateChanged";
 
-static NSString * const kSleepModeEnabledKey =
+NSString * const SleepModeEnabledKey =
     @"SleepModeEnabled";
 
-static NSString * const kSleepModeTimeoutKey =
+NSString * const SleepModeTimeoutKey =
     @"SleepModeTimeout";
 
 @implementation SleepControlCenter
@@ -15,8 +18,8 @@ static NSString * const kSleepModeTimeoutKey =
 + (instancetype)sharedInstance
 {
     static SleepControlCenter *instance = nil;
-    static dispatch_once_t onceToken;
 
+    static dispatch_once_t onceToken;
     dispatch_once(&onceToken, ^{
         instance = [[self alloc] init];
     });
@@ -33,14 +36,14 @@ static NSString * const kSleepModeTimeoutKey =
         NSUserDefaults *defaults =
             [NSUserDefaults standardUserDefaults];
 
-        if ([defaults objectForKey:kSleepModeEnabledKey] == nil) {
-            [defaults setBool:YES
-                        forKey:kSleepModeEnabledKey];
+        if ([defaults objectForKey:SleepModeEnabledKey] == nil) {
+            [defaults setBool:NO
+                       forKey:SleepModeEnabledKey];
         }
 
-        if ([defaults objectForKey:kSleepModeTimeoutKey] == nil) {
+        if ([defaults objectForKey:SleepModeTimeoutKey] == nil) {
             [defaults setDouble:15.0
-                         forKey:kSleepModeTimeoutKey];
+                         forKey:SleepModeTimeoutKey];
         }
     }
 
@@ -51,37 +54,49 @@ static NSString * const kSleepModeTimeoutKey =
 
 - (BOOL)isEnabled
 {
-    return [SleepManager sharedInstance].enabled;
+    return [[NSUserDefaults standardUserDefaults]
+                boolForKey:SleepModeEnabledKey];
 }
 
 - (void)setEnabled:(BOOL)enabled
 {
-    [[SleepManager sharedInstance]
-        setEnabled:enabled];
-
     NSUserDefaults *defaults =
         [NSUserDefaults standardUserDefaults];
 
     [defaults setBool:enabled
-               forKey:kSleepModeEnabledKey];
+               forKey:SleepModeEnabledKey];
 
     [defaults synchronize];
 
+    NSDictionary *info = @{
+        @"enabled": @(enabled)
+    };
+
     [[NSNotificationCenter defaultCenter]
-        postNotificationName:
-            SleepControlCenterStateChangedNotification
-        object:nil];
+        postNotificationName:SleepModeCommandNotification
+                      object:nil
+                    userInfo:info];
+
+    [[NSNotificationCenter defaultCenter]
+        postNotificationName:SleepModeStateChangedNotification
+                      object:nil];
 }
+
+#pragma mark - Enable
 
 - (void)enable
 {
     self.enabled = YES;
 }
 
+#pragma mark - Disable
+
 - (void)disable
 {
     self.enabled = NO;
 }
+
+#pragma mark - Toggle
 
 - (void)toggle
 {
@@ -92,42 +107,53 @@ static NSString * const kSleepModeTimeoutKey =
 
 - (void)setTimeout:(NSTimeInterval)timeout
 {
-    if (timeout < 1.0) {
+    if (timeout < 1.0)
         timeout = 1.0;
-    }
-
-    if (timeout > 86400.0) {
-        timeout = 86400.0;
-    }
-
-    [[SleepManager sharedInstance]
-        setTimeout:timeout];
 
     NSUserDefaults *defaults =
         [NSUserDefaults standardUserDefaults];
 
     [defaults setDouble:timeout
-                 forKey:kSleepModeTimeoutKey];
+                 forKey:SleepModeTimeoutKey];
 
     [defaults synchronize];
 
+    NSDictionary *info = @{
+        @"timeout": @(timeout)
+    };
+
     [[NSNotificationCenter defaultCenter]
-        postNotificationName:
-            SleepControlCenterStateChangedNotification
-        object:nil];
+        postNotificationName:SleepModeCommandNotification
+                      object:nil
+                    userInfo:info];
+
+    [[NSNotificationCenter defaultCenter]
+        postNotificationName:SleepModeStateChangedNotification
+                      object:nil];
 }
 
 - (NSTimeInterval)currentTimeout
 {
-    return [SleepManager sharedInstance].timeout;
+    NSTimeInterval timeout =
+        [[NSUserDefaults standardUserDefaults]
+            doubleForKey:SleepModeTimeoutKey];
+
+    if (timeout <= 0)
+        timeout = 15.0;
+
+    return timeout;
 }
 
 #pragma mark - Reset
 
 - (void)resetTimer
 {
-    [[SleepManager sharedInstance]
-        resetTimer];
+    [[NSNotificationCenter defaultCenter]
+        postNotificationName:SleepModeCommandNotification
+                      object:nil
+                    userInfo:@{
+                        @"reset": @YES
+                    }];
 }
 
 @end

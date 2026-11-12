@@ -20,8 +20,7 @@ SleepMode_FRAMEWORKS = \
 SleepMode_PRIVATE_FRAMEWORKS = \
     SpringBoardUI \
     BackBoardServices \
-    FrontBoardServices \
-    ControlCenterUI
+    FrontBoardServices
 
 BUNDLE_NAME = SleepModeModule
 
@@ -36,9 +35,6 @@ SleepModeModule_CFLAGS = \
 SleepModeModule_FRAMEWORKS = \
     UIKit \
     Foundation
-
-SleepModeModule_PRIVATE_FRAMEWORKS = \
-    ControlCenterUI
 
 SleepModeModule_INSTALL_PATH = \
     /Library/ControlCenter/Bundles

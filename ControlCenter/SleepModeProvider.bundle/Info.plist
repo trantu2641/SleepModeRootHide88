@@ -1,13 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC
-"-//Apple//DTD PLIST 1.0//EN"
-"http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+ "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 
 <plist version="1.0">
 <dict>
-
-    <key>CFBundleDevelopmentRegion</key>
-    <string>vi</string>
 
     <key>CFBundleDisplayName</key>
     <string>Chế độ ngủ</string>
@@ -18,9 +14,6 @@
     <key>CFBundleIdentifier</key>
     <string>com.trantu.sleepmode.provider</string>
 
-    <key>CFBundleInfoDictionaryVersion</key>
-    <string>6.0</string>
-
     <key>CFBundleName</key>
     <string>SleepModeProvider</string>
 
@@ -28,15 +21,10 @@
     <string>BNDL</string>
 
     <key>CFBundleShortVersionString</key>
-    <string>1.7.0</string>
+    <string>1.8.0</string>
 
     <key>CFBundleVersion</key>
-    <string>1.7.0</string>
-
-    <key>CFBundleSupportedPlatforms</key>
-    <array>
-        <string>iPhoneOS</string>
-    </array>
+    <string>1.8.0</string>
 
     <key>MinimumOSVersion</key>
     <string>16.0</string>

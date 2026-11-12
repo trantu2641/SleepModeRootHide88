@@ -50,6 +50,14 @@ static void SleepModeTouchCallback(
     CFAbsoluteTime _lastInteraction;
 
     BOOL _isEnteringSleep;
+
+    /*
+     * YES:
+     *     Màn hình/device đang khóa.
+     *
+     * Khi YES, timer sẽ bị stop hoàn toàn.
+     */
+    BOOL _deviceLocked;
 }
 @end
 
@@ -82,14 +90,21 @@ static void SleepModeTouchCallback(
 
     if (self) {
 
-        /*
-         * CORE TEST
-         *
-         * 60 giây.
-         */
-
         _enabled = YES;
 
+        /*
+         * TEST:
+         * 60 giây
+         *
+         * Sau này có thể đổi thành:
+         *
+         * 60.0
+         * 300.0
+         * 900.0
+         * 1800.0
+         * 3600.0
+         * 7200.0
+         */
         _timeout = 60.0;
 
         _lastInteraction =
@@ -97,11 +112,11 @@ static void SleepModeTouchCallback(
 
         _isEnteringSleep = NO;
 
-        /*
-         * Nhận Darwin Notification
-         * từ các process/app khác.
-         */
+        _deviceLocked = NO;
 
+        /*
+         * Darwin notification cho activity.
+         */
         CFNotificationCenterAddObserver(
             CFNotificationCenterGetDarwinNotifyCenter(),
 
@@ -123,14 +138,31 @@ static void SleepModeTouchCallback(
     return self;
 }
 
-#pragma mark - Start
+#pragma mark - Start Timer
 
 - (void)start
 {
+    /*
+     * Không chạy khi disabled.
+     */
     if (!self.enabled) {
         return;
     }
 
+    /*
+     * Không chạy khi màn hình đã khóa.
+     */
+    if (_deviceLocked) {
+        NSLog(
+            @"[SleepMode] Timer start ignored because device is locked"
+        );
+
+        return;
+    }
+
+    /*
+     * Đã có timer rồi thì không tạo timer thứ hai.
+     */
     if (_timer != nil) {
         return;
     }
@@ -138,19 +170,25 @@ static void SleepModeTouchCallback(
     _timer =
         dispatch_source_create(
             DISPATCH_SOURCE_TYPE_TIMER,
+
             0,
+
             0,
+
             dispatch_get_main_queue()
         );
 
     if (_timer == nil) {
+        NSLog(
+            @"[SleepMode] Failed to create timer"
+        );
+
         return;
     }
 
     /*
      * Kiểm tra mỗi 1 giây.
      */
-
     dispatch_source_set_timer(
         _timer,
 
@@ -177,6 +215,16 @@ static void SleepModeTouchCallback(
                 return;
             }
 
+            /*
+             * Cực kỳ quan trọng:
+             *
+             * Nếu máy đã khóa thì không được
+             * xử lý timeout nữa.
+             */
+            if (strongSelf->_deviceLocked) {
+                return;
+            }
+
             if (!strongSelf.enabled) {
                 return;
             }
@@ -199,19 +247,32 @@ static void SleepModeTouchCallback(
             if (elapsed >=
                 strongSelf.timeout) {
 
+                NSLog(
+                    @"[SleepMode] Timeout reached after %.1f seconds",
+                    elapsed
+                );
+
                 [strongSelf enterSleepMode];
             }
         }
     );
 
     dispatch_resume(_timer);
+
+    NSLog(
+        @"[SleepMode] Timer started"
+    );
 }
 
-#pragma mark - Stop
+#pragma mark - Stop Timer
 
 - (void)stop
 {
     if (_timer != nil) {
+
+        NSLog(
+            @"[SleepMode] Timer stopped"
+        );
 
         dispatch_source_cancel(_timer);
 
@@ -223,6 +284,13 @@ static void SleepModeTouchCallback(
 
 - (void)resetTimer
 {
+    /*
+     * Nếu máy đang khóa thì không reset.
+     */
+    if (_deviceLocked) {
+        return;
+    }
+
     _lastInteraction =
         CFAbsoluteTimeGetCurrent();
 
@@ -237,19 +305,82 @@ static void SleepModeTouchCallback(
         return;
     }
 
+    /*
+     * Không coi activity khi máy đang khóa
+     * là interaction.
+     */
+    if (_deviceLocked) {
+        return;
+    }
+
     [self resetTimer];
+
+    /*
+     * Phòng trường hợp timer chưa tồn tại.
+     */
+    if (_timer == nil) {
+        [self start];
+    }
 }
 
-#pragma mark - Terminate User Applications
+#pragma mark - Device Lock
+
+- (void)deviceDidLock
+{
+    /*
+     * Tránh gọi nhiều lần.
+     */
+    if (_deviceLocked) {
+        return;
+    }
+
+    NSLog(
+        @"[SleepMode] Device locked -> stopping SleepMode timer"
+    );
+
+    _deviceLocked = YES;
+
+    _isEnteringSleep = NO;
+
+    /*
+     * Dừng timer hoàn toàn.
+     */
+    [self stop];
+}
+
+#pragma mark - Device Unlock
+
+- (void)deviceDidUnlock
+{
+    /*
+     * Nếu chưa ở trạng thái locked
+     * thì không cần làm gì.
+     */
+    if (!_deviceLocked) {
+        return;
+    }
+
+    NSLog(
+        @"[SleepMode] Device unlocked -> restarting SleepMode timer"
+    );
+
+    _deviceLocked = NO;
+
+    _isEnteringSleep = NO;
+
+    /*
+     * Bắt đầu lại từ thời điểm unlock.
+     */
+    _lastInteraction =
+        CFAbsoluteTimeGetCurrent();
+
+    [self start];
+}
+
+#pragma mark - Terminate Applications
 
 - (void)terminateUserApplications
 {
-    /*
-     * Chỉ thực hiện từ SpringBoard.
-     *
-     * Không dùng kill()/SIGKILL.
-     */
-
     Class SBApplicationControllerClass =
         NSClassFromString(
             @"SBApplicationController"
@@ -290,10 +421,6 @@ static void SleepModeTouchCallback(
         return;
     }
 
-    /*
-     * Lấy danh sách app đang chạy.
-     */
-
     NSArray *runningApplications = nil;
 
     SEL runningApplicationsSelector =
@@ -311,9 +438,9 @@ static void SleepModeTouchCallback(
     }
 
     /*
-     * Fallback sang allApplications.
+     * Fallback:
+     * lấy toàn bộ app rồi lọc app đang chạy.
      */
-
     if (![runningApplications
             isKindOfClass:
                 [NSArray class]]) {
@@ -358,9 +485,7 @@ static void SleepModeTouchCallback(
                     }
 
                     if (isRunning) {
-
-                        [filtered
-                            addObject:app];
+                        [filtered addObject:app];
                     }
                 }
 
@@ -380,9 +505,8 @@ static void SleepModeTouchCallback(
     }
 
     /*
-     * FrontBoard service.
+     * FBSSystemService
      */
-
     Class FBSSystemServiceClass =
         NSClassFromString(
             @"FBSSystemService"
@@ -437,9 +561,9 @@ static void SleepModeTouchCallback(
     }
 
     /*
-     * Những bundle tuyệt đối không terminate.
+     * Không bao giờ terminate SpringBoard
+     * hoặc các process hệ thống quan trọng.
      */
-
     NSSet *excludedBundleIDs =
         [NSSet setWithObjects:
 
@@ -459,8 +583,7 @@ static void SleepModeTouchCallback(
 
             nil];
 
-    for (id app
-         in runningApplications) {
+    for (id app in runningApplications) {
 
         if (app == nil) {
             continue;
@@ -494,19 +617,14 @@ static void SleepModeTouchCallback(
         }
 
         /*
-         * Không đụng vào bundle bị bảo vệ.
+         * Exclude system applications.
          */
-
         if ([excludedBundleIDs
                 containsObject:
                     bundleID]) {
 
             continue;
         }
-
-        /*
-         * Không terminate system apps.
-         */
 
         if ([bundleID
                 hasPrefix:
@@ -535,10 +653,15 @@ static void SleepModeTouchCallback(
                    id))
             objc_msgSend)(
             fbsService,
+
             terminateSelector,
+
             bundleID,
+
             reason,
+
             report,
+
             description
         );
     }
@@ -553,8 +676,11 @@ static void SleepModeTouchCallback(
     }
 
     /*
-     * Đánh dấu ngay lập tức.
+     * Không làm gì nếu máy đã khóa.
      */
+    if (_deviceLocked) {
+        return;
+    }
 
     _isEnteringSleep = YES;
 
@@ -563,26 +689,25 @@ static void SleepModeTouchCallback(
     );
 
     /*
-     * Bước 1:
-     * terminate app người dùng.
+     * 1. Đóng app người dùng.
      */
-
     [self terminateUserApplications];
-
-    /*
-     * Chờ một chút để FrontBoard xử lý
-     * request terminate.
-     */
 
     __weak SleepManager *weakSelf =
         self;
 
+    /*
+     * Cho SpringBoard khoảng 300ms
+     * để xử lý việc terminate app.
+     */
     dispatch_after(
         dispatch_time(
             DISPATCH_TIME_NOW,
             300 * NSEC_PER_MSEC
         ),
+
         dispatch_get_main_queue(),
+
         ^{
             SleepManager *strongSelf =
                 weakSelf;
@@ -591,12 +716,28 @@ static void SleepModeTouchCallback(
                 return;
             }
 
+            /*
+             * Nếu trong 300ms này máy đã bị khóa
+             * bởi nơi khác thì không lock lại.
+             */
+            if (strongSelf->_deviceLocked) {
+                strongSelf->_isEnteringSleep = NO;
+
+                return;
+            }
+
+            /*
+             * Khóa máy.
+             */
             [strongSelf lockDevice];
 
             /*
-             * Reset mốc thời gian sau khi
-             * hoàn thành chu kỳ.
+             * Ngay sau khi ra lệnh lock,
+             * dừng SleepMode timer.
+             *
+             * Không đợi timer tự chạy tiếp.
              */
+            [strongSelf deviceDidLock];
 
             strongSelf->_lastInteraction =
                 CFAbsoluteTimeGetCurrent();
@@ -611,11 +752,6 @@ static void SleepModeTouchCallback(
 
 - (void)lockDevice
 {
-    /*
-     * Cách 1:
-     * SBLockScreenManager
-     */
-
     Class lockManagerClass =
         NSClassFromString(
             @"SBLockScreenManager"
@@ -663,10 +799,8 @@ static void SleepModeTouchCallback(
     }
 
     /*
-     * Cách 2:
-     * _simulateLockButtonPress
+     * Fallback.
      */
-
     UIApplication *application =
         [UIApplication sharedApplication];
 
@@ -718,7 +852,7 @@ static void SleepModeTouchCallback(
 
 @end
 
-#pragma mark - Darwin Notification Callback
+#pragma mark - Darwin Touch Callback
 
 static void SleepModeTouchCallback(
     CFNotificationCenterRef center,

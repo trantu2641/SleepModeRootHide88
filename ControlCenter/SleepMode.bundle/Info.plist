@@ -1,75 +1,39 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC
-"-//Apple//DTD PLIST 1.0//EN"
-"http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+ "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 
 <plist version="1.0">
 <dict>
 
-    <key>CFBundleDevelopmentRegion</key>
-    <string>English</string>
-
-    <key>CFBundleExecutable</key>
-    <string>SleepMode</string>
-
     <key>CFBundleIdentifier</key>
     <string>com.trantu.sleepmode.module</string>
-
-    <key>CFBundleInfoDictionaryVersion</key>
-    <string>6.0</string>
 
     <key>CFBundleName</key>
     <string>SleepMode</string>
 
+    <key>CFBundleDisplayName</key>
+    <string>SleepMode</string>
+
+    <key>CFBundleExecutable</key>
+    <string>SleepModeModule</string>
+
     <key>CFBundlePackageType</key>
     <string>BNDL</string>
+
+    <key>CFBundleVersion</key>
+    <string>1.0</string>
 
     <key>CFBundleShortVersionString</key>
     <string>1.0</string>
 
-    <key>CFBundleVersion</key>
-    <string>1</string>
-
-    <key>CFBundleSupportedPlatforms</key>
-    <array>
-        <string>iPhoneOS</string>
-    </array>
+    <key>NSPrincipalClass</key>
+    <string>SleepModeModule</string>
 
     <key>MinimumOSVersion</key>
     <string>16.0</string>
 
-    <key>UIDeviceFamily</key>
-    <array>
-        <integer>1</integer>
-        <integer>2</integer>
-    </array>
-
-    <key>NSPrincipalClass</key>
-    <string>SleepModeModule</string>
-
     <key>CCSModuleSize</key>
-    <dict>
-
-        <key>Portrait</key>
-        <dict>
-            <key>Height</key>
-            <integer>1</integer>
-            <key>Width</key>
-            <integer>1</integer>
-        </dict>
-
-        <key>Landscape</key>
-        <dict>
-            <key>Height</key>
-            <integer>1</integer>
-            <key>Width</key>
-            <integer>1</integer>
-        </dict>
-
-    </dict>
-
-    <key>CCSGetModuleSizeAtRuntime</key>
-    <false/>
+    <string>1x1</string>
 
 </dict>
 </plist>

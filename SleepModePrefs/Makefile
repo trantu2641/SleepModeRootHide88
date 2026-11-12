@@ -8,23 +8,23 @@ include $(THEOS)/makefiles/common.mk
 BUNDLE_NAME = SleepModePrefs
 
 SleepModePrefs_FILES = \
-    SleepModePrefs.m
+	SleepModePrefs.m
 
 SleepModePrefs_CFLAGS = \
-    -fobjc-arc \
-    -Wno-deprecated-declarations
+	-fobjc-arc \
+	-Wno-deprecated-declarations
 
 SleepModePrefs_FRAMEWORKS = \
-    UIKit \
-    Foundation
+	UIKit \
+	Foundation
 
 SleepModePrefs_PRIVATE_FRAMEWORKS = \
-    Preferences
+	Preferences
 
 SleepModePrefs_INSTALL_PATH = \
-    /Library/PreferenceBundles
+	/Library/PreferenceBundles
 
 SleepModePrefs_RESOURCE_DIRS = \
-    Resources
+	Resources
 
 include $(THEOS_MAKE_PATH)/bundle.mk

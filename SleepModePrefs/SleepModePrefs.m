@@ -1,14 +1,15 @@
 #import <UIKit/UIKit.h>
 #import <Preferences/PSListController.h>
 #import <Preferences/PSSpecifier.h>
-
 #import <CoreFoundation/CoreFoundation.h>
+
 
 @interface SleepModePrefsListController : PSListController
 @end
 
 
 @implementation SleepModePrefsListController
+
 
 - (instancetype)init
 {
@@ -35,20 +36,23 @@
 }
 
 
-#pragma mark - Immediate notification
+#pragma mark - Immediate Settings update
 
 - (void)setPreferenceValue:(id)value
-                  specifier:(PSSpecifier *)specifier
+                 specifier:(PSSpecifier *)specifier
 {
+    /*
+     * Preferences.framework ghi giá trị vào:
+     *
+     * com.trantu.sleepmode
+     */
     [super setPreferenceValue:value
                     specifier:specifier];
 
     /*
-     * PreferenceLoader đã ghi giá trị vào
-     * com.trantu.sleepmode.
+     * Báo ngay cho SleepManager trong SpringBoard.
      *
-     * Darwin notification giúp SpringBoard
-     * nhận thay đổi ngay lập tức.
+     * Không respring.
      */
     CFNotificationCenterPostNotification(
         CFNotificationCenterGetDarwinNotifyCenter(),
@@ -66,5 +70,6 @@
 
     self.title = @"SleepMode";
 }
+
 
 @end

@@ -4,24 +4,9 @@
 
 #import "SleepControlCenter.h"
 
-/*
- * CCSupport / ControlCenter
- *
- * Immortalizer sử dụng trực tiếp:
- *
- *     CCUIToggleModule
- *
- * và bundle Info.plist:
- *
- *     NSPrincipalClass = ImmortalizerCC
- *
- * SleepMode làm tương tự.
- */
-
 @interface CCUIToggleModule : NSObject
 - (instancetype)init;
 @end
-
 
 @interface SleepModeModule : CCUIToggleModule
 @end
@@ -67,19 +52,11 @@ static NSString * const kSleepModeTimeoutKey =
 
 #pragma mark - Identifier
 
-/*
- * CCSupport dùng identifier để nhận diện module.
- */
 - (NSString *)identifier
 {
     return kSleepModeIdentifier;
 }
 
-
-/*
- * Một số phiên bản ControlCenter dùng moduleIdentifier.
- * Có cả hai để tương thích.
- */
 - (NSString *)moduleIdentifier
 {
     return kSleepModeIdentifier;
@@ -99,7 +76,7 @@ static NSString * const kSleepModeTimeoutKey =
 }
 
 
-#pragma mark - Selected
+#pragma mark - Selected State
 
 - (BOOL)isSelected
 {
@@ -140,17 +117,13 @@ static NSString * const kSleepModeTimeoutKey =
 }
 
 
-#pragma mark - Toggle
+#pragma mark - Tap
 
 - (void)handleTap
 {
     [self setSelected:![self isSelected]];
 }
 
-
-/*
- * CCSupport gọi activate / handleTap tùy phiên bản.
- */
 - (void)activate
 {
     [self handleTap];
@@ -159,26 +132,21 @@ static NSString * const kSleepModeTimeoutKey =
 
 #pragma mark - Icon
 
-/*
- * Icon của tile.
- *
- * CCSupport có thể lấy icon bằng glyph hoặc UIImage.
- * Giữ cả hai cách để tương thích.
- */
-
 - (UIImage *)iconImage
 {
     NSBundle *bundle =
         [NSBundle bundleForClass:[self class]];
 
     NSString *path =
-        [bundle pathForResource:@"SleepModeModuleIcon"
-                        ofType:@"png"];
+        [bundle pathForResource:
+            @"SleepModeModuleIcon"
+            ofType:@"png"];
 
     if (!path) {
         path =
-            [bundle pathForResource:@"SleepModeModuleIcon@3x"
-                            ofType:@"png"];
+            [bundle pathForResource:
+                @"SleepModeModuleIcon@3x"
+                ofType:@"png"];
     }
 
     if (!path) {
@@ -196,11 +164,6 @@ static NSString * const kSleepModeTimeoutKey =
 
 #pragma mark - Glyph
 
-/*
- * Một số bản CCSupport ưu tiên glyph.
- * Dùng SF Symbol nếu hệ thống hỗ trợ.
- */
-
 - (NSString *)iconGlyph
 {
     return @"moon.zzz.fill";
@@ -214,34 +177,25 @@ static NSString * const kSleepModeTimeoutKey =
 - (void)setSelectedGlyphColor:(UIColor *)color
 {
     /*
-     * CCSupport tự xử lý màu selected.
-     * Không cần giữ state màu riêng.
+     * CCSupport tự xử lý màu của trạng thái selected.
      */
 }
 
 
-#pragma mark - State refresh
+#pragma mark - State
 
 - (void)refreshModuleState
 {
     /*
-     * Một số phiên bản CCSupport có phương thức
-     * updateState / reloadState.
+     * Không gọi private selector trực tiếp.
      *
-     * Không gọi trực tiếp private selector nếu chưa tồn tại.
+     * State được lưu trong NSUserDefaults và
+     * SleepControlCenter xử lý phần logic.
      */
 }
 
 
-#pragma mark - Long press
-
-/*
- * Nhấn giữ tile để chọn thời gian.
- *
- * Không tạo UIViewController riêng.
- * Immortalizer cũng sử dụng action menu trực tiếp
- * thông qua Control Center module.
- */
+#pragma mark - Long Press
 
 - (void)handleLongPress
 {
@@ -249,19 +203,25 @@ static NSString * const kSleepModeTimeoutKey =
         [[NSUserDefaults standardUserDefaults]
          doubleForKey:kSleepModeTimeoutKey];
 
-    if (current <= 0) {
+    if (current <= 0.0) {
         current = 15.0;
     }
 
-    /*
-     * Tạo UIAlertController trên window hiện tại.
-     */
-
     UIWindow *window = nil;
 
+
+    /*
+     * iOS 13+
+     *
+     * Không sử dụng UIApplication.keyWindow
+     * vì API này deprecated từ iOS 13.
+     */
     if (@available(iOS 13.0, *)) {
-        for (UIScene *scene
-             in [UIApplication sharedApplication].connectedScenes) {
+
+        NSSet<UIScene *> *scenes =
+            [UIApplication sharedApplication].connectedScenes;
+
+        for (UIScene *scene in scenes) {
 
             if (scene.activationState !=
                 UISceneActivationStateForegroundActive) {
@@ -278,26 +238,79 @@ static NSString * const kSleepModeTimeoutKey =
             for (UIWindow *candidate
                  in windowScene.windows) {
 
+                if (candidate.hidden) {
+                    continue;
+                }
+
+                if (candidate.alpha <= 0.0) {
+                    continue;
+                }
+
+                if (candidate.windowLevel !=
+                    UIWindowLevelNormal) {
+                    continue;
+                }
+
+                if (candidate.rootViewController == nil) {
+                    continue;
+                }
+
+                /*
+                 * Ưu tiên key window.
+                 */
                 if (candidate.isKeyWindow) {
                     window = candidate;
                     break;
                 }
+
+                /*
+                 * Nếu chưa tìm được key window,
+                 * giữ lại window hợp lệ đầu tiên.
+                 */
+                if (!window) {
+                    window = candidate;
+                }
             }
 
-            if (window) {
+            if (window && window.isKeyWindow) {
                 break;
             }
         }
+
+    } else {
+
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+
+        NSArray *windows =
+            [UIApplication sharedApplication].windows;
+
+        for (UIWindow *candidate in windows) {
+
+            if (candidate.hidden) {
+                continue;
+            }
+
+            if (candidate.alpha <= 0.0) {
+                continue;
+            }
+
+            if (candidate.rootViewController == nil) {
+                continue;
+            }
+
+            window = candidate;
+            break;
+        }
+
+#pragma clang diagnostic pop
     }
 
-    if (!window) {
-        window =
-            [UIApplication sharedApplication].keyWindow;
-    }
 
     if (!window) {
         return;
     }
+
 
     UIViewController *root =
         window.rootViewController;
@@ -306,9 +319,15 @@ static NSString * const kSleepModeTimeoutKey =
         return;
     }
 
+
+    /*
+     * Nếu đang có một ViewController khác
+     * được trình bày, lấy controller ngoài cùng.
+     */
     while (root.presentedViewController) {
         root = root.presentedViewController;
     }
+
 
     UIAlertController *alert =
         [UIAlertController
@@ -322,26 +341,32 @@ static NSString * const kSleepModeTimeoutKey =
             @"title": @"15 giây",
             @"value": @15.0
         },
+
         @{
             @"title": @"1 phút",
             @"value": @60.0
         },
+
         @{
             @"title": @"5 phút",
             @"value": @300.0
         },
+
         @{
             @"title": @"15 phút",
             @"value": @900.0
         },
+
         @{
             @"title": @"30 phút",
             @"value": @1800.0
         },
+
         @{
             @"title": @"1 giờ",
             @"value": @3600.0
         },
+
         @{
             @"title": @"2 giờ",
             @"value": @7200.0
@@ -357,14 +382,17 @@ static NSString * const kSleepModeTimeoutKey =
         NSNumber *value =
             item[@"value"];
 
+
         BOOL isCurrent =
             (fabs([value doubleValue] - current) < 0.5);
+
 
         NSString *finalTitle =
             isCurrent
                 ? [NSString stringWithFormat:
                        @"✓ %@", title]
                 : title;
+
 
         UIAlertAction *action =
             [UIAlertAction
@@ -380,6 +408,7 @@ static NSString * const kSleepModeTimeoutKey =
 
         }];
 
+
         [alert addAction:action];
     }
 
@@ -391,6 +420,26 @@ static NSString * const kSleepModeTimeoutKey =
                    handler:nil]];
 
 
+    /*
+     * An toàn cho cả iPhone và iPad.
+     */
+    UIPopoverPresentationController *popover =
+        alert.popoverPresentationController;
+
+    if (popover) {
+
+        popover.sourceView = window;
+
+        popover.sourceRect =
+            CGRectMake(
+                CGRectGetMidX(window.bounds),
+                CGRectGetMidY(window.bounds),
+                1.0,
+                1.0
+            );
+    }
+
+
     [root presentViewController:
         alert
            animated:YES
@@ -400,9 +449,6 @@ static NSString * const kSleepModeTimeoutKey =
 
 #pragma mark - Content
 
-/*
- * Module là toggle 1×1 nên không cần content view.
- */
 - (BOOL)hasContent
 {
     return NO;
@@ -414,7 +460,7 @@ static NSString * const kSleepModeTimeoutKey =
 }
 
 
-#pragma mark - Debug description
+#pragma mark - Description
 
 - (NSString *)description
 {

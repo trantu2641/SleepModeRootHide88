@@ -1,22 +1,13 @@
 #import <Foundation/Foundation.h>
 #import <UIKit/UIKit.h>
+#import <objc/runtime.h>
 #import <objc/message.h>
+#import <dlfcn.h>
 
-@interface CCUIToggleModule : NSObject
-- (instancetype)init;
-@end
+#pragma mark - Constants
 
-@interface SleepModeModule : CCUIToggleModule
-@end
-
-static NSString * const kSleepModeIdentifier =
-    @"com.trantu.sleepmode";
-
-static NSString * const kSleepModeEnabledKey =
-    @"SleepModeEnabled";
-
-static NSString * const kSleepModeTimeoutKey =
-    @"SleepModeTimeout";
+static NSString * const kSleepModeEnabledKey = @"SleepModeEnabled";
+static NSString * const kSleepModeTimeoutKey = @"SleepModeTimeout";
 
 static NSString * const kSleepModeCommandNotification =
     @"com.trantu.sleepmode.command";
@@ -24,373 +15,179 @@ static NSString * const kSleepModeCommandNotification =
 static NSString * const kSleepModeStateChangedNotification =
     @"com.trantu.sleepmode.stateChanged";
 
-@implementation SleepModeModule
+#pragma mark - Runtime helpers
 
-- (instancetype)init
+static Class SleepModeLoadCCUIToggleModule(void)
 {
-    self = [super init];
+    Class cls = NSClassFromString(@"CCUIToggleModule");
 
-    if (self) {
-        NSUserDefaults *defaults =
-            [NSUserDefaults standardUserDefaults];
-
-        if ([defaults objectForKey:kSleepModeEnabledKey] == nil) {
-            [defaults setBool:NO
-                       forKey:kSleepModeEnabledKey];
-        }
-
-        if ([defaults objectForKey:kSleepModeTimeoutKey] == nil) {
-            [defaults setDouble:15.0
-                         forKey:kSleepModeTimeoutKey];
-        }
-
-        [defaults synchronize];
+    if (cls) {
+        return cls;
     }
+
+    /*
+     * CCUIToggleModule nằm trong ControlCenterUI private framework.
+     * Không link trực tiếp để tránh lỗi undefined symbol khi build.
+     */
+    void *handle = dlopen(
+        "/System/Library/PrivateFrameworks/ControlCenterUI.framework/ControlCenterUI",
+        RTLD_LAZY
+    );
+
+    if (handle) {
+        cls = NSClassFromString(@"CCUIToggleModule");
+    }
+
+    return cls;
+}
+
+#pragma mark - Runtime Module
+
+static id SleepModeModuleInit(id self, SEL _cmd)
+{
+    self = ((id (*)(id, SEL))objc_msgSend)(
+        self,
+        sel_registerName("init")
+    );
 
     return self;
 }
 
-- (NSString *)identifier
+static BOOL SleepModeModuleIsSelected(id self, SEL _cmd)
 {
-    return kSleepModeIdentifier;
+    NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
+
+    return [defaults boolForKey:kSleepModeEnabledKey];
 }
 
-- (NSString *)moduleIdentifier
+static void SleepModeModuleSetSelected(id self, SEL _cmd, BOOL selected)
 {
-    return kSleepModeIdentifier;
-}
+    NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
 
-- (NSString *)displayName
-{
-    return @"Chế độ ngủ";
-}
-
-- (NSString *)title
-{
-    return @"Chế độ ngủ";
-}
-
-- (BOOL)isSelected
-{
-    return [[NSUserDefaults standardUserDefaults]
-            boolForKey:kSleepModeEnabledKey];
-}
-
-- (BOOL)selected
-{
-    return [self isSelected];
-}
-
-- (void)setSelected:(BOOL)selected
-{
-    NSUserDefaults *defaults =
-        [NSUserDefaults standardUserDefaults];
-
-    [defaults setBool:selected
-               forKey:kSleepModeEnabledKey];
-
+    [defaults setBool:selected forKey:kSleepModeEnabledKey];
     [defaults synchronize];
 
-    NSDictionary *info =
-        @{
-            @"enabled": @(selected)
-        };
+    NSDictionary *info = @{
+        @"enabled": @(selected)
+    };
 
     [[NSNotificationCenter defaultCenter]
-        postNotificationName:
-            kSleepModeCommandNotification
+        postNotificationName:kSleepModeCommandNotification
         object:nil
         userInfo:info];
 
     [[NSNotificationCenter defaultCenter]
-        postNotificationName:
-            kSleepModeStateChangedNotification
+        postNotificationName:kSleepModeStateChangedNotification
         object:nil];
-
-    [self refreshModuleState];
 }
 
-- (void)handleTap
+static void SleepModeModuleSetSelectedState(id self, SEL _cmd, BOOL selected)
 {
-    [self setSelected:![self isSelected]];
+    SleepModeModuleSetSelected(self, _cmd, selected);
 }
 
-- (void)activate
+static void SleepModeModuleHandlePress(id self, SEL _cmd)
 {
-    [self handleTap];
+    BOOL current =
+        SleepModeModuleIsSelected(self, _cmd);
+
+    SleepModeModuleSetSelected(
+        self,
+        sel_registerName("setSelected:"),
+        !current
+    );
 }
 
-- (UIImage *)iconImage
+#pragma mark - Module Creation
+
+static void SleepModeCreateModuleClass(void)
 {
-    NSBundle *bundle =
-        [NSBundle bundleForClass:[self class]];
-
-    NSString *path =
-        [bundle pathForResource:
-            @"SleepModeModuleIcon"
-            ofType:@"png"];
-
-    if (!path) {
-        path =
-            [bundle pathForResource:
-                @"SleepModeModuleIcon@3x"
-                ofType:@"png"];
-    }
-
-    if (!path) {
-        return nil;
-    }
-
-    return [UIImage imageWithContentsOfFile:path];
-}
-
-- (UIImage *)selectedIconImage
-{
-    return [self iconImage];
-}
-
-- (NSString *)iconGlyph
-{
-    return @"moon.zzz.fill";
-}
-
-- (NSString *)selectedIconGlyph
-{
-    return @"moon.zzz.fill";
-}
-
-- (void)setSelectedGlyphColor:(UIColor *)color
-{
-}
-
-- (void)refreshModuleState
-{
-}
-
-- (void)handleLongPress
-{
-    NSTimeInterval current =
-        [[NSUserDefaults standardUserDefaults]
-         doubleForKey:kSleepModeTimeoutKey];
-
-    if (current <= 0.0) {
-        current = 15.0;
-    }
-
-    UIWindow *window = nil;
-
-    if (@available(iOS 13.0, *)) {
-
-        NSSet<UIScene *> *scenes =
-            [UIApplication sharedApplication].connectedScenes;
-
-        for (UIScene *scene in scenes) {
-
-            if (scene.activationState !=
-                UISceneActivationStateForegroundActive) {
-                continue;
-            }
-
-            if (![scene isKindOfClass:
-                    [UIWindowScene class]]) {
-                continue;
-            }
-
-            UIWindowScene *windowScene =
-                (UIWindowScene *)scene;
-
-            for (UIWindow *candidate
-                 in windowScene.windows) {
-
-                if (candidate.hidden) {
-                    continue;
-                }
-
-                if (candidate.alpha <= 0.0) {
-                    continue;
-                }
-
-                if (candidate.windowLevel !=
-                    UIWindowLevelNormal) {
-                    continue;
-                }
-
-                if (!candidate.rootViewController) {
-                    continue;
-                }
-
-                if (candidate.isKeyWindow) {
-                    window = candidate;
-                    break;
-                }
-
-                if (!window) {
-                    window = candidate;
-                }
-            }
-
-            if (window &&
-                window.isKeyWindow) {
-                break;
-            }
-        }
-    }
-
-    if (!window) {
+    /*
+     * Nếu class đã tồn tại thì không tạo lại.
+     */
+    if (NSClassFromString(@"SleepModeModule")) {
         return;
     }
 
-    UIViewController *root =
-        window.rootViewController;
+    Class baseClass = SleepModeLoadCCUIToggleModule();
 
-    if (!root) {
+    if (!baseClass) {
+        NSLog(@"[SleepMode] CCUIToggleModule not found");
         return;
     }
 
-    while (root.presentedViewController) {
-        root = root.presentedViewController;
+    /*
+     * Tạo:
+     *
+     * SleepModeModule : CCUIToggleModule
+     *
+     * hoàn toàn bằng runtime.
+     *
+     * Vì vậy linker không cần:
+     * _OBJC_CLASS_$_CCUIToggleModule
+     */
+    Class moduleClass =
+        objc_allocateClassPair(
+            baseClass,
+            "SleepModeModule",
+            0
+        );
+
+    if (!moduleClass) {
+        NSLog(@"[SleepMode] Failed to allocate SleepModeModule");
+        return;
     }
 
-    UIAlertController *alert =
-        [UIAlertController
-            alertControllerWithTitle:
-                @"Chế độ ngủ"
-            message:
-                @"Tự khóa sau"
-            preferredStyle:
-                UIAlertControllerStyleActionSheet];
+    class_addMethod(
+        moduleClass,
+        sel_registerName("init"),
+        (IMP)SleepModeModuleInit,
+        "@@:"
+    );
 
-    NSArray *options = @[
-        @{
-            @"title": @"15 giây",
-            @"value": @15.0
-        },
-        @{
-            @"title": @"1 phút",
-            @"value": @60.0
-        },
-        @{
-            @"title": @"5 phút",
-            @"value": @300.0
-        },
-        @{
-            @"title": @"15 phút",
-            @"value": @900.0
-        },
-        @{
-            @"title": @"30 phút",
-            @"value": @1800.0
-        },
-        @{
-            @"title": @"1 giờ",
-            @"value": @3600.0
-        },
-        @{
-            @"title": @"2 giờ",
-            @"value": @7200.0
-        }
-    ];
+    class_addMethod(
+        moduleClass,
+        sel_registerName("isSelected"),
+        (IMP)SleepModeModuleIsSelected,
+        "c@:"
+    );
 
-    for (NSDictionary *item in options) {
+    class_addMethod(
+        moduleClass,
+        sel_registerName("setSelected:"),
+        (IMP)SleepModeModuleSetSelected,
+        "v@:c"
+    );
 
-        NSString *title =
-            item[@"title"];
+    class_addMethod(
+        moduleClass,
+        sel_registerName("setSelectedState:"),
+        (IMP)SleepModeModuleSetSelectedState,
+        "v@:c"
+    );
 
-        NSNumber *value =
-            item[@"value"];
+    class_addMethod(
+        moduleClass,
+        sel_registerName("handlePress"),
+        (IMP)SleepModeModuleHandlePress,
+        "v@:"
+    );
 
-        BOOL isCurrent =
-            fabs([value doubleValue] - current) < 0.5;
+    objc_registerClassPair(moduleClass);
 
-        NSString *finalTitle =
-            isCurrent
-                ? [NSString stringWithFormat:
-                    @"✓ %@", title]
-                : title;
-
-        UIAlertAction *action =
-            [UIAlertAction
-                actionWithTitle:
-                    finalTitle
-                style:
-                    UIAlertActionStyleDefault
-                handler:
-                    ^(UIAlertAction *action) {
-
-            NSTimeInterval timeout =
-                [value doubleValue];
-
-            NSUserDefaults *defaults =
-                [NSUserDefaults standardUserDefaults];
-
-            [defaults setDouble:
-                timeout
-                    forKey:
-                kSleepModeTimeoutKey];
-
-            [defaults synchronize];
-
-            NSDictionary *info =
-                @{
-                    @"timeout": @(timeout)
-                };
-
-            [[NSNotificationCenter defaultCenter]
-                postNotificationName:
-                    kSleepModeCommandNotification
-                object:nil
-                userInfo:info];
-
-            [[NSNotificationCenter defaultCenter]
-                postNotificationName:
-                    kSleepModeStateChangedNotification
-                object:nil];
-        }];
-
-        [alert addAction:action];
-    }
-
-    [alert addAction:
-        [UIAlertAction
-            actionWithTitle:
-                @"Hủy"
-            style:
-                UIAlertActionStyleCancel
-            handler:nil]];
-
-    UIPopoverPresentationController *popover =
-        alert.popoverPresentationController;
-
-    if (popover) {
-        popover.sourceView = window;
-        popover.sourceRect =
-            CGRectMake(
-                CGRectGetMidX(window.bounds),
-                CGRectGetMidY(window.bounds),
-                1.0,
-                1.0
-            );
-    }
-
-    [root presentViewController:
-        alert
-        animated:YES
-        completion:nil];
+    NSLog(@"[SleepMode] SleepModeModule registered");
 }
 
-- (BOOL)hasContent
-{
-    return NO;
-}
+#pragma mark - Bootstrap
 
-- (UIViewController *)contentViewController
-{
-    return nil;
-}
+@interface SleepModeModuleBootstrap : NSObject
+@end
 
-- (NSString *)description
+@implementation SleepModeModuleBootstrap
+
++ (void)load
 {
-    return @"SleepMode Control Center Module";
+    SleepModeCreateModuleClass();
 }
 
 @end

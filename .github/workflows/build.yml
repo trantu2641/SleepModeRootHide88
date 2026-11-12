@@ -18,7 +18,7 @@ jobs:
     steps:
 
       # =====================================================
-      # 1. CHECKOUT SOURCE
+      # 1. CHECKOUT
       # =====================================================
 
       - name: Checkout
@@ -101,7 +101,43 @@ jobs:
 
 
       # =====================================================
-      # 5. CÀI dm.pl
+      # 5. BOOTSTRAP THEOS
+      # =====================================================
+
+      - name: Bootstrap Theos
+        run: |
+          export THEOS="$HOME/theos"
+
+          echo "================================"
+          echo "BOOTSTRAP THEOS"
+          echo "================================"
+
+          chmod +x \
+            "$THEOS/bin/update-theos"
+
+          "$THEOS/bin/update-theos"
+
+          echo ""
+          echo "================================"
+          echo "VENDOR CHECK"
+          echo "================================"
+
+          if [ ! -d "$THEOS/vendor/include" ]; then
+            echo "ERROR: vendor/include missing"
+            exit 1
+          fi
+
+          if [ ! -d "$THEOS/vendor/lib" ]; then
+            echo "ERROR: vendor/lib missing"
+            exit 1
+          fi
+
+          echo "vendor/include: OK"
+          echo "vendor/lib: OK"
+
+
+      # =====================================================
+      # 6. CÀI dm.pl
       # =====================================================
 
       - name: Install dm.pl
@@ -134,7 +170,7 @@ jobs:
 
 
       # =====================================================
-      # 6. CÀI IPHONEOS 16.5 SDK
+      # 7. CÀI IPHONEOS 16.5 SDK
       # =====================================================
 
       - name: Install iPhoneOS 16.5 SDK
@@ -164,10 +200,7 @@ jobs:
             "/tmp/theos-sdks/iPhoneOS16.5.sdk" ]; then
 
             echo ""
-            echo "================================"
-            echo "ERROR"
-            echo "================================"
-
+            echo "ERROR:"
             echo "iPhoneOS16.5.sdk was not found."
 
             exit 1
@@ -189,7 +222,7 @@ jobs:
 
 
       # =====================================================
-      # 7. KIỂM TRA MÔI TRƯỜNG BUILD
+      # 8. KIỂM TRA MÔI TRƯỜNG BUILD
       # =====================================================
 
       - name: Verify build environment
@@ -205,6 +238,25 @@ jobs:
 
           echo ""
           echo "================================"
+          echo "THEOS VENDOR"
+          echo "================================"
+
+          if [ ! -d "$THEOS/vendor/include" ]; then
+            echo "ERROR: vendor/include not found"
+            exit 1
+          fi
+
+          if [ ! -d "$THEOS/vendor/lib" ]; then
+            echo "ERROR: vendor/lib not found"
+            exit 1
+          fi
+
+          echo "vendor/include: OK"
+          echo "vendor/lib: OK"
+
+
+          echo ""
+          echo "================================"
           echo "dm.pl"
           echo "================================"
 
@@ -213,12 +265,7 @@ jobs:
             exit 1
           fi
 
-          echo "dm.pl found:"
           ls -lh "$THEOS/bin/dm.pl"
-
-          echo ""
-          echo "PATH:"
-          which dm.pl || true
 
 
           echo ""
@@ -252,25 +299,25 @@ jobs:
 
           echo ""
           echo "================================"
-          echo "THEOS VERSION"
+          echo "THEOS COMMON.MK"
           echo "================================"
 
           if [ -f "$THEOS/makefiles/common.mk" ]; then
-            echo "Theos common.mk found"
+            echo "common.mk: OK"
           else
-            echo "ERROR: Theos common.mk not found"
+            echo "ERROR: common.mk not found"
             exit 1
           fi
 
 
       # =====================================================
-      # 8. KIỂM TRA CẤU TRÚC PROJECT
+      # 9. KIỂM TRA PROJECT
       # =====================================================
 
       - name: Check SleepMode project
         run: |
           echo "================================"
-          echo "PROJECT STRUCTURE"
+          echo "PROJECT FILES"
           echo "================================"
 
           find SleepMode \
@@ -297,6 +344,7 @@ jobs:
 
           for FILE in $REQUIRED_FILES
           do
+
             if [ ! -f "$FILE" ]; then
               echo "ERROR: Missing file:"
               echo "$FILE"
@@ -304,11 +352,12 @@ jobs:
             fi
 
             echo "OK: $FILE"
+
           done
 
 
       # =====================================================
-      # 9. BUILD
+      # 10. BUILD
       # =====================================================
 
       - name: Build SleepMode
@@ -316,14 +365,6 @@ jobs:
         run: |
           export THEOS="$HOME/theos"
 
-          echo "================================"
-          echo "THEOS"
-          echo "================================"
-
-          echo "$THEOS"
-
-
-          echo ""
           echo "================================"
           echo "TARGET"
           echo "================================"
@@ -350,7 +391,7 @@ jobs:
 
 
       # =====================================================
-      # 10. KIỂM TRA FILE DEB
+      # 11. KIỂM TRA DEB
       # =====================================================
 
       - name: Verify DEB
@@ -389,7 +430,7 @@ jobs:
 
 
       # =====================================================
-      # 11. HIỂN THỊ THÔNG TIN PACKAGE
+      # 12. HIỂN THỊ PACKAGE
       # =====================================================
 
       - name: Show package information
@@ -398,21 +439,14 @@ jobs:
           echo "PACKAGE INFORMATION"
           echo "================================"
 
-          for DEB in $(find . -type f -name "*.deb")
-          do
-            echo ""
-            echo "--------------------------------"
-            echo "$DEB"
-            echo "--------------------------------"
-
-            ls -lh "$DEB"
-
-            file "$DEB"
-          done
+          find . \
+            -type f \
+            -name "*.deb" \
+            -exec ls -lh {} \;
 
 
       # =====================================================
-      # 12. UPLOAD DEB
+      # 13. UPLOAD DEB
       # =====================================================
 
       - name: Upload DEB

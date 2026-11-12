@@ -1,47 +1,23 @@
 #import "SleepManager.h"
 
-#import <Foundation/Foundation.h>
 #import <UIKit/UIKit.h>
+#import <Foundation/Foundation.h>
 #import <CoreFoundation/CoreFoundation.h>
 #import <objc/message.h>
-
-#pragma mark - Constants
-
-static NSString * const kSleepTouchNotification =
-    @"com.trantu.sleepmode.touch";
+#import <objc/runtime.h>
 
 
-#pragma mark - Private API Helpers
+#pragma mark - Private SpringBoard interfaces
 
-static id SMCallObject(
-    id target,
-    SEL selector
-)
-{
-    if (target == nil ||
-        ![target respondsToSelector:selector]) {
+@interface SBLockScreenManager : NSObject
 
-        return nil;
-    }
++ (instancetype)sharedInstance;
 
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Warc-performSelector-leaks"
+- (void)lockDevice;
 
-    return [target performSelector:selector];
+- (void)lockFromSource:(int)source;
 
-#pragma clang diagnostic pop
-}
-
-
-#pragma mark - Forward Declaration
-
-static void SleepModeTouchCallback(
-    CFNotificationCenterRef center,
-    void *observer,
-    CFStringRef name,
-    const void *object,
-    CFDictionaryRef userInfo
-);
+@end
 
 
 #pragma mark - SleepManager
@@ -52,18 +28,10 @@ static void SleepModeTouchCallback(
 
     CFAbsoluteTime _lastInteraction;
 
+    BOOL _deviceLocked;
     BOOL _isEnteringSleep;
 
-    /*
-     * YES:
-     *   thiết bị đang khóa
-     *
-     * Khi YES:
-     *   không chạy timer
-     *   không đếm thời gian
-     *   touch không reset timer
-     */
-    BOOL _deviceLocked;
+    BOOL _started;
 }
 
 @end
@@ -76,19 +44,19 @@ static void SleepModeTouchCallback(
 
 + (instancetype)sharedInstance
 {
-    static SleepManager *sharedInstance = nil;
+    static SleepManager *instance = nil;
 
     static dispatch_once_t onceToken;
 
     dispatch_once(
         &onceToken,
         ^{
-            sharedInstance =
+            instance =
                 [[self alloc] init];
         }
     );
 
-    return sharedInstance;
+    return instance;
 }
 
 
@@ -100,230 +68,297 @@ static void SleepModeTouchCallback(
 
     if (self) {
 
+        /*
+         * Mặc định:
+         *
+         * - bật
+         * - timeout 15 giây
+         * - thiết bị đang unlock
+         */
         _enabled = YES;
 
-        /*
-         * TEST MODE
-         *
-         * Không hoạt động trong 15 giây
-         * thì SleepMode xử lý.
-         */
         _timeout = 15.0;
 
-        _lastInteraction =
-            CFAbsoluteTimeGetCurrent();
+        _deviceLocked = NO;
 
         _isEnteringSleep = NO;
 
-        /*
-         * Khi SpringBoard vừa khởi động,
-         * mặc định coi thiết bị đang unlock.
-         */
-        _deviceLocked = NO;
+        _started = NO;
 
-        /*
-         * Darwin notification touch.
-         */
-        CFNotificationCenterAddObserver(
-            CFNotificationCenterGetDarwinNotifyCenter(),
-
-            (__bridge const void *)self,
-
-            SleepModeTouchCallback,
-
-            (__bridge CFStringRef)
-                kSleepTouchNotification,
-
-            NULL,
-
-            CFNotificationSuspensionBehaviorDeliverImmediately
-        );
-
-        [self start];
+        _lastInteraction =
+            CFAbsoluteTimeGetCurrent();
     }
 
     return self;
 }
 
 
-#pragma mark - Start Timer
+#pragma mark - Enabled
+
+- (void)setEnabled:(BOOL)enabled
+{
+    @synchronized (self) {
+
+        if (_enabled == enabled) {
+            return;
+        }
+
+        _enabled = enabled;
+
+        if (!_enabled) {
+
+            [self stop];
+
+            _isEnteringSleep = NO;
+
+            return;
+        }
+
+        /*
+         * Bật lại từ đầu.
+         */
+        [self resetTimer];
+
+        if (!_deviceLocked) {
+            [self start];
+        }
+    }
+}
+
+
+- (BOOL)enabled
+{
+    @synchronized (self) {
+        return _enabled;
+    }
+}
+
+
+#pragma mark - Timeout
+
+- (void)setTimeout:(NSTimeInterval)timeout
+{
+    @synchronized (self) {
+
+        /*
+         * Giới hạn để tránh giá trị lỗi.
+         */
+        if (timeout < 1.0) {
+            timeout = 1.0;
+        }
+
+        if (timeout > 86400.0) {
+            timeout = 86400.0;
+        }
+
+        _timeout = timeout;
+
+        /*
+         * Đổi timeout phải bắt đầu lại
+         * chu kỳ đếm.
+         */
+        _lastInteraction =
+            CFAbsoluteTimeGetCurrent();
+
+        _isEnteringSleep = NO;
+
+        if (_enabled &&
+            !_deviceLocked) {
+
+            [self start];
+        }
+    }
+}
+
+
+- (NSTimeInterval)timeout
+{
+    @synchronized (self) {
+        return _timeout;
+    }
+}
+
+
+#pragma mark - Start timer
 
 - (void)start
 {
-    /*
-     * Không chạy khi disabled.
-     */
-    if (!self.enabled) {
-        return;
-    }
+    @synchronized (self) {
 
-    /*
-     * Không chạy khi máy đang khóa.
-     */
-    if (_deviceLocked) {
-        return;
-    }
+        if (!_enabled) {
+            return;
+        }
 
-    /*
-     * Timer đã chạy rồi.
-     */
-    if (_timer != nil) {
-        return;
-    }
+        if (_deviceLocked) {
+            return;
+        }
 
-    _timer =
-        dispatch_source_create(
-            DISPATCH_SOURCE_TYPE_TIMER,
-            0,
-            0,
-            dispatch_get_main_queue()
+        /*
+         * Nếu timer đã chạy thì không tạo
+         * thêm timer mới.
+         */
+        if (_timer != nil) {
+
+            if (!_started) {
+                _started = YES;
+            }
+
+            return;
+        }
+
+        _started = YES;
+
+        _lastInteraction =
+            CFAbsoluteTimeGetCurrent();
+
+        /*
+         * Timer chạy trên background queue.
+         *
+         * Không chạy logic timer trên main thread.
+         */
+        dispatch_queue_t queue =
+            dispatch_get_global_queue(
+                QOS_CLASS_UTILITY,
+                0
+            );
+
+        dispatch_source_t timer =
+            dispatch_source_create(
+                DISPATCH_SOURCE_TYPE_TIMER,
+                0,
+                0,
+                queue
+            );
+
+        if (!timer) {
+            _started = NO;
+            return;
+        }
+
+        _timer = timer;
+
+        /*
+         * Kiểm tra mỗi 1 giây.
+         *
+         * Không kiểm tra mỗi touch.
+         */
+        dispatch_source_set_timer(
+            timer,
+            dispatch_time(
+                DISPATCH_TIME_NOW,
+                NSEC_PER_SEC
+            ),
+            NSEC_PER_SEC,
+            100 * NSEC_PER_MSEC
         );
 
-    if (_timer == nil) {
-        return;
+        __weak SleepManager *weakSelf =
+            self;
+
+        dispatch_source_set_event_handler(
+            timer,
+            ^{
+                SleepManager *strongSelf =
+                    weakSelf;
+
+                if (!strongSelf) {
+                    return;
+                }
+
+                [strongSelf checkTimeout];
+            }
+        );
+
+        dispatch_source_set_cancel_handler(
+            timer,
+            ^{
+                /*
+                 * Không làm việc nặng ở đây.
+                 */
+            }
+        );
+
+        dispatch_resume(timer);
     }
-
-    /*
-     * Kiểm tra mỗi 1 giây.
-     */
-    dispatch_source_set_timer(
-        _timer,
-
-        dispatch_time(
-            DISPATCH_TIME_NOW,
-            1 * NSEC_PER_SEC
-        ),
-
-        1 * NSEC_PER_SEC,
-
-        100 * NSEC_PER_MSEC
-    );
-
-    __weak SleepManager *weakSelf =
-        self;
-
-    dispatch_source_set_event_handler(
-        _timer,
-        ^{
-            SleepManager *strongSelf =
-                weakSelf;
-
-            if (strongSelf == nil) {
-                return;
-            }
-
-            /*
-             * Disabled.
-             */
-            if (!strongSelf.enabled) {
-                return;
-            }
-
-            /*
-             * Thiết bị đang khóa.
-             *
-             * Không đếm.
-             */
-            if (strongSelf->_deviceLocked) {
-                return;
-            }
-
-            /*
-             * Đang thực hiện sleep.
-             */
-            if (strongSelf->_isEnteringSleep) {
-                return;
-            }
-
-            if (strongSelf.timeout <= 0.0) {
-                return;
-            }
-
-            CFAbsoluteTime now =
-                CFAbsoluteTimeGetCurrent();
-
-            CFAbsoluteTime elapsed =
-                now -
-                strongSelf->_lastInteraction;
-
-            if (elapsed >=
-                strongSelf.timeout) {
-
-                NSLog(
-                    @"[SleepMode] Timeout reached after %.1f seconds",
-                    elapsed
-                );
-
-                [strongSelf enterSleepMode];
-            }
-        }
-    );
-
-    dispatch_resume(_timer);
-
-    NSLog(
-        @"[SleepMode] Timer started, timeout = %.1f seconds",
-        self.timeout
-    );
 }
 
 
-#pragma mark - Stop Timer
+#pragma mark - Stop timer
 
 - (void)stop
 {
-    if (_timer != nil) {
+    @synchronized (self) {
 
-        dispatch_source_cancel(_timer);
+        dispatch_source_t timer =
+            _timer;
 
         _timer = nil;
 
-        NSLog(@"[SleepMode] Timer stopped");
+        _started = NO;
+
+        if (timer != nil) {
+
+            dispatch_source_cancel(timer);
+        }
     }
 }
 
 
-#pragma mark - Reset Timer
+#pragma mark - Reset timer
 
 - (void)resetTimer
 {
-    /*
-     * Nếu đang khóa thì không reset.
-     */
-    if (_deviceLocked) {
-        return;
+    @synchronized (self) {
+
+        if (!_enabled) {
+            return;
+        }
+
+        if (_deviceLocked) {
+            return;
+        }
+
+        _lastInteraction =
+            CFAbsoluteTimeGetCurrent();
+
+        _isEnteringSleep = NO;
     }
-
-    _lastInteraction =
-        CFAbsoluteTimeGetCurrent();
-
-    _isEnteringSleep = NO;
-
-    NSLog(@"[SleepMode] Timer reset");
 }
 
 
-#pragma mark - User Interaction
+#pragma mark - User interaction
 
 - (void)userDidInteract
 {
-    if (!self.enabled) {
+    /*
+     * Đây là đường chạy rất thường xuyên,
+     * nên tuyệt đối không NSLog ở đây.
+     */
+
+    if (!_enabled) {
         return;
     }
 
-    /*
-     * Khi lock screen:
-     *
-     * Không xử lý activity.
-     */
     if (_deviceLocked) {
         return;
     }
 
+    /*
+     * Chỉ ghi nhận thời điểm.
+     *
+     * Không:
+     *
+     * - enumerate app
+     * - terminate app
+     * - lock máy
+     * - tạo timer mới
+     * - dispatch nhiều block
+     */
     [self resetTimer];
 
     /*
-     * Phòng trường hợp timer chưa tồn tại.
+     * Nếu vì lý do nào đó timer chưa tồn tại
+     * thì khởi động lại.
      */
     if (_timer == nil) {
         [self start];
@@ -331,512 +366,458 @@ static void SleepModeTouchCallback(
 }
 
 
-#pragma mark - Device Locked
+#pragma mark - Check timeout
 
-- (void)deviceDidLock
+- (void)checkTimeout
 {
-    NSLog(@"[SleepMode] DeviceDidLock");
-
-    _deviceLocked = YES;
-
-    _isEnteringSleep = NO;
-
     /*
-     * Dừng hoàn toàn bộ timer.
+     * Tất cả phần kiểm tra này chạy ngoài main thread.
      */
-    [self stop];
-}
+    BOOL shouldSleep = NO;
 
+    NSTimeInterval timeout = 0.0;
 
-#pragma mark - Device Unlocked
+    CFAbsoluteTime lastInteraction = 0.0;
 
-- (void)deviceDidUnlock
-{
-    NSLog(@"[SleepMode] DeviceDidUnlock");
+    @synchronized (self) {
 
-    _deviceLocked = NO;
+        if (!_enabled) {
+            return;
+        }
 
-    _isEnteringSleep = NO;
+        if (_deviceLocked) {
+            return;
+        }
+
+        if (_isEnteringSleep) {
+            return;
+        }
+
+        timeout = _timeout;
+
+        lastInteraction =
+            _lastInteraction;
+
+        CFAbsoluteTime now =
+            CFAbsoluteTimeGetCurrent();
+
+        CFTimeInterval elapsed =
+            now - lastInteraction;
+
+        if (elapsed >= timeout) {
+
+            _isEnteringSleep = YES;
+
+            shouldSleep = YES;
+        }
+    }
+
+    if (!shouldSleep) {
+        return;
+    }
 
     /*
-     * Unlock = bắt đầu một chu kỳ mới.
+     * Timeout đã hết.
      *
-     * Không lấy thời gian trước khi khóa
-     * để tính tiếp.
+     * Không thực hiện terminate app trực tiếp
+     * trong phần lock timer.
      */
-    _lastInteraction =
-        CFAbsoluteTimeGetCurrent();
-
-    /*
-     * Tạo timer mới.
-     */
-    [self start];
+    [self enterSleepMode];
 }
 
 
-#pragma mark - Terminate Applications
+#pragma mark - Terminate user applications
 
 - (void)terminateUserApplications
 {
-    Class SBApplicationControllerClass =
-        NSClassFromString(
-            @"SBApplicationController"
-        );
-
-    if (SBApplicationControllerClass == Nil) {
-
-        NSLog(
-            @"[SleepMode] SBApplicationController unavailable"
-        );
-
-        return;
-    }
-
-    id controller = nil;
-
-    SEL sharedInstanceSelector =
-        @selector(sharedInstance);
-
-    if ([SBApplicationControllerClass
-            respondsToSelector:
-                sharedInstanceSelector]) {
-
-        controller =
-            ((id (*)(id, SEL))
-                objc_msgSend)(
-                SBApplicationControllerClass,
-                sharedInstanceSelector
-            );
-    }
-
-    if (controller == nil) {
-
-        NSLog(
-            @"[SleepMode] Cannot get SBApplicationController"
-        );
-
-        return;
-    }
-
-    NSArray *runningApplications = nil;
-
-    SEL runningApplicationsSelector =
-        @selector(runningApplications);
-
-    if ([controller
-            respondsToSelector:
-                runningApplicationsSelector]) {
-
-        runningApplications =
-            SMCallObject(
-                controller,
-                runningApplicationsSelector
-            );
-    }
-
     /*
-     * Fallback:
-     * lấy allApplications rồi lọc app đang chạy.
+     * Phần này chạy trên background queue.
+     *
+     * Tuy nhiên thao tác với SpringBoard
+     * cần được đưa về main thread.
      */
-    if (![runningApplications
-            isKindOfClass:
-                [NSArray class]]) {
-
-        SEL allApplicationsSelector =
-            @selector(allApplications);
-
-        if ([controller
-                respondsToSelector:
-                    allApplicationsSelector]) {
-
-            NSArray *allApplications =
-                SMCallObject(
-                    controller,
-                    allApplicationsSelector
+    dispatch_async(
+        dispatch_get_main_queue(),
+        ^{
+            Class workspaceClass =
+                NSClassFromString(
+                    @"SBMainWorkspace"
                 );
 
-            if ([allApplications
-                    isKindOfClass:
-                        [NSArray class]]) {
+            if (!workspaceClass) {
+                return;
+            }
 
-                NSMutableArray *filtered =
-                    [NSMutableArray array];
+            SEL sharedSelector =
+                NSSelectorFromString(
+                    @"sharedInstance"
+                );
 
-                for (id app in allApplications) {
+            if (![workspaceClass
+                    respondsToSelector:
+                        sharedSelector]) {
 
-                    BOOL isRunning = NO;
+                return;
+            }
 
-                    SEL isRunningSelector =
-                        @selector(isRunning);
+            id workspace =
+                ((id (*)(id, SEL))objc_msgSend)(
+                    workspaceClass,
+                    sharedSelector
+                );
 
-                    if ([app
-                            respondsToSelector:
-                                isRunningSelector]) {
+            if (!workspace) {
+                return;
+            }
 
-                        isRunning =
-                            ((BOOL (*)(id, SEL))
-                                objc_msgSend)(
-                                app,
-                                isRunningSelector
-                            );
-                    }
 
-                    if (isRunning) {
-                        [filtered addObject:app];
-                    }
+            /*
+             * Cách 1:
+             * terminateApplicationWithBundleIdentifier:
+             * 
+             * Nếu SpringBoard cung cấp selector này.
+             */
+            SEL terminateSelector =
+                NSSelectorFromString(
+                    @"terminateApplicationWithBundleIdentifier:"
+                );
+
+            /*
+             * Không tự enumerate toàn bộ app ở đây.
+             *
+             * Việc enumerate toàn bộ workspace thường
+             * là một trong những nguyên nhân gây lag.
+             */
+            if ([workspace
+                    respondsToSelector:
+                        terminateSelector]) {
+
+                NSArray *runningApplications = nil;
+
+                SEL appsSelector =
+                    NSSelectorFromString(
+                        @"runningApplications"
+                    );
+
+                if ([workspace
+                        respondsToSelector:
+                            appsSelector]) {
+
+                    runningApplications =
+                        ((id (*)(id, SEL))objc_msgSend)(
+                            workspace,
+                            appsSelector
+                        );
                 }
 
-                runningApplications =
-                    [filtered copy];
+                if ([runningApplications
+                        isKindOfClass:
+                            [NSArray class]]) {
+
+                    for (id application
+                         in runningApplications) {
+
+                        NSString *bundleIdentifier = nil;
+
+                        SEL bundleIDSelector =
+                            NSSelectorFromString(
+                                @"bundleIdentifier"
+                            );
+
+                        if ([application
+                                respondsToSelector:
+                                    bundleIDSelector]) {
+
+                            bundleIdentifier =
+                                ((id (*)(id, SEL))objc_msgSend)(
+                                    application,
+                                    bundleIDSelector
+                                );
+                        }
+
+                        if (bundleIdentifier.length == 0) {
+                            continue;
+                        }
+
+
+                        /*
+                         * Không terminate Apple/System apps.
+                         */
+                        if ([bundleIdentifier
+                                hasPrefix:@"com.apple."]) {
+
+                            continue;
+                        }
+
+
+                        /*
+                         * Không terminate SpringBoard.
+                         */
+                        if ([bundleIdentifier
+                                isEqualToString:
+                                    @"com.apple.springboard"]) {
+
+                            continue;
+                        }
+
+
+                        /*
+                         * Chỉ terminate app người dùng.
+                         */
+                        ((void (*)(id, SEL, id))objc_msgSend)(
+                            workspace,
+                            terminateSelector,
+                            bundleIdentifier
+                        );
+                    }
+                }
             }
         }
-    }
-
-    if (runningApplications.count == 0) {
-
-        NSLog(
-            @"[SleepMode] No running applications found"
-        );
-
-        return;
-    }
-
-
-    #pragma mark - FBSSystemService
-
-    Class FBSSystemServiceClass =
-        NSClassFromString(
-            @"FBSSystemService"
-        );
-
-    id fbsService = nil;
-
-    if (FBSSystemServiceClass != Nil) {
-
-        SEL sharedServiceSelector =
-            @selector(sharedService);
-
-        if ([FBSSystemServiceClass
-                respondsToSelector:
-                    sharedServiceSelector]) {
-
-            fbsService =
-                ((id (*)(id, SEL))
-                    objc_msgSend)(
-                    FBSSystemServiceClass,
-                    sharedServiceSelector
-                );
-        }
-    }
-
-    if (fbsService == nil) {
-
-        NSLog(
-            @"[SleepMode] FBSSystemService unavailable"
-        );
-
-        return;
-    }
-
-
-    #pragma mark - Termination Selector
-
-    SEL terminateSelector =
-        @selector(
-            terminateApplication:
-            forReason:
-            andReport:
-            withDescription:
-        );
-
-    if (![fbsService
-            respondsToSelector:
-                terminateSelector]) {
-
-        NSLog(
-            @"[SleepMode] Termination selector unavailable"
-        );
-
-        return;
-    }
-
-
-    #pragma mark - Exclusions
-
-    NSSet *excludedBundleIDs =
-        [NSSet setWithObjects:
-
-            @"com.apple.springboard",
-
-            @"com.apple.Preferences",
-
-            @"com.apple.WebKit.Networking",
-
-            @"com.apple.WebKit.WebContent",
-
-            @"com.apple.WebKit.GPU",
-
-            @"com.apple.UIKit.pasteboardd",
-
-            @"com.apple.Pasteboard",
-
-            nil
-        ];
-
-
-    #pragma mark - Terminate
-
-    for (id app in runningApplications) {
-
-        if (app == nil) {
-            continue;
-        }
-
-        NSString *bundleID = nil;
-
-        SEL bundleIdentifierSelector =
-            @selector(bundleIdentifier);
-
-        if ([app
-                respondsToSelector:
-                    bundleIdentifierSelector]) {
-
-            bundleID =
-                SMCallObject(
-                    app,
-                    bundleIdentifierSelector
-                );
-        }
-
-        if (![bundleID
-                isKindOfClass:
-                    [NSString class]]) {
-
-            continue;
-        }
-
-        if (bundleID.length == 0) {
-            continue;
-        }
-
-        /*
-         * Không đóng SpringBoard
-         * hoặc các thành phần hệ thống.
-         */
-        if ([excludedBundleIDs
-                containsObject:
-                    bundleID]) {
-
-            continue;
-        }
-
-        /*
-         * Không đụng app hệ thống Apple.
-         */
-        if ([bundleID
-                hasPrefix:
-                    @"com.apple."]) {
-
-            continue;
-        }
-
-        NSLog(
-            @"[SleepMode] Terminating app: %@",
-            bundleID
-        );
-
-        NSString *description =
-            @"SleepMode automatic idle termination";
-
-        long long reason = 5;
-
-        BOOL report = NO;
-
-        ((void (*)(id,
-                   SEL,
-                   id,
-                   long long,
-                   BOOL,
-                   id))
-            objc_msgSend)(
-            fbsService,
-
-            terminateSelector,
-
-            bundleID,
-
-            reason,
-
-            report,
-
-            description
-        );
-    }
+    );
 }
 
 
-#pragma mark - Enter Sleep
+#pragma mark - Enter sleep mode
 
 - (void)enterSleepMode
 {
     /*
-     * Không sleep lần 2.
+     * Chỉ cho phép một lần chạy.
      */
-    if (_isEnteringSleep) {
-        return;
-    }
+    @synchronized (self) {
 
-    /*
-     * Không sleep nếu máy đã khóa.
-     */
-    if (_deviceLocked) {
-        return;
-    }
+        if (!_enabled) {
 
-    _isEnteringSleep = YES;
+            _isEnteringSleep = NO;
 
-    NSLog(
-        @"[SleepMode] Timeout reached"
-    );
-
-    /*
-     * Đóng app người dùng.
-     */
-    [self terminateUserApplications];
-
-    __weak SleepManager *weakSelf =
-        self;
-
-    /*
-     * Chờ một chút để app terminate
-     * hoàn tất trước khi khóa máy.
-     */
-    dispatch_after(
-        dispatch_time(
-            DISPATCH_TIME_NOW,
-            300 * NSEC_PER_MSEC
-        ),
-
-        dispatch_get_main_queue(),
-
-        ^{
-            SleepManager *strongSelf =
-                weakSelf;
-
-            if (strongSelf == nil) {
-                return;
-            }
-
-            /*
-             * Trong lúc chờ nếu máy đã bị
-             * khóa bởi nơi khác thì bỏ qua.
-             */
-            if (strongSelf->_deviceLocked) {
-
-                strongSelf->_isEnteringSleep =
-                    NO;
-
-                return;
-            }
-
-            NSLog(
-                @"[SleepMode] Locking device"
-            );
-
-            [strongSelf lockDevice];
-
-            /*
-             * Không tiếp tục đếm trong chu kỳ
-             * vừa lock.
-             */
-            [strongSelf deviceDidLock];
-        }
-    );
-}
-
-
-#pragma mark - Lock Device
-
-- (void)lockDevice
-{
-    Class lockManagerClass =
-        NSClassFromString(
-            @"SBLockScreenManager"
-        );
-
-    if (lockManagerClass != Nil) {
-
-        id manager = nil;
-
-        SEL sharedInstanceSelector =
-            @selector(sharedInstance);
-
-        if ([lockManagerClass
-                respondsToSelector:
-                    sharedInstanceSelector]) {
-
-            manager =
-                ((id (*)(id, SEL))
-                    objc_msgSend)(
-                lockManagerClass,
-                sharedInstanceSelector
-            );
+            return;
         }
 
-        SEL lockDeviceSelector =
-            @selector(lockDevice);
+        if (_deviceLocked) {
 
-        if (manager != nil &&
-            [manager
-                respondsToSelector:
-                    lockDeviceSelector]) {
-
-            NSLog(
-                @"[SleepMode] Locking device via SBLockScreenManager"
-            );
-
-            ((void (*)(id, SEL))
-                objc_msgSend)(
-                manager,
-                lockDeviceSelector
-            );
+            _isEnteringSleep = NO;
 
             return;
         }
     }
 
 
-    #pragma mark - Fallback
+    /*
+     * Dừng timer ngay trước khi thực hiện
+     * terminate/lock.
+     */
+    [self stop];
 
-    UIApplication *application =
-        [UIApplication sharedApplication];
 
-    SEL simulateLockSelector =
-        @selector(
-            _simulateLockButtonPress
+    /*
+     * Đóng app người dùng.
+     */
+    [self terminateUserApplications];
+
+
+    /*
+     * Đợi một khoảng rất ngắn để
+     * SpringBoard xử lý terminate.
+     *
+     * Không dùng sleep() vì sleep sẽ block
+     * thread đang chạy.
+     */
+    dispatch_after(
+        dispatch_time(
+            DISPATCH_TIME_NOW,
+            80 * NSEC_PER_MSEC
+        ),
+        dispatch_get_main_queue(),
+        ^{
+            [self performDeviceLock];
+        }
+    );
+}
+
+
+#pragma mark - Lock device
+
+- (void)performDeviceLock
+{
+    @synchronized (self) {
+
+        if (!_enabled) {
+
+            _isEnteringSleep = NO;
+
+            return;
+        }
+
+        if (_deviceLocked) {
+
+            _isEnteringSleep = NO;
+
+            return;
+        }
+
+        _deviceLocked = YES;
+    }
+
+
+    Class lockManagerClass =
+        NSClassFromString(
+            @"SBLockScreenManager"
         );
 
-    if (application != nil &&
-        [application
+    if (!lockManagerClass) {
+
+        @synchronized (self) {
+            _deviceLocked = NO;
+            _isEnteringSleep = NO;
+        }
+
+        return;
+    }
+
+
+    SEL sharedSelector =
+        NSSelectorFromString(
+            @"sharedInstance"
+        );
+
+    if (![lockManagerClass
             respondsToSelector:
-                simulateLockSelector]) {
+                sharedSelector]) {
 
-        NSLog(
-            @"[SleepMode] Locking device via _simulateLockButtonPress"
+        @synchronized (self) {
+            _deviceLocked = NO;
+            _isEnteringSleep = NO;
+        }
+
+        return;
+    }
+
+
+    id manager =
+        ((id (*)(id, SEL))objc_msgSend)(
+            lockManagerClass,
+            sharedSelector
         );
 
-        ((void (*)(id, SEL))
-            objc_msgSend)(
-            application,
-            simulateLockSelector
+    if (!manager) {
+
+        @synchronized (self) {
+            _deviceLocked = NO;
+            _isEnteringSleep = NO;
+        }
+
+        return;
+    }
+
+
+    /*
+     * Phương pháp chính.
+     */
+    SEL lockSelector =
+        NSSelectorFromString(
+            @"lockDevice"
+        );
+
+    if ([manager
+            respondsToSelector:
+                lockSelector]) {
+
+        ((void (*)(id, SEL))objc_msgSend)(
+            manager,
+            lockSelector
         );
 
         return;
     }
 
-    NSLog(
-        @"[SleepMode] Unable to lock device"
-    );
+
+    /*
+     * Fallback cho một số build SpringBoard.
+     */
+    SEL sourceSelector =
+        NSSelectorFromString(
+            @"lockFromSource:"
+        );
+
+    if ([manager
+            respondsToSelector:
+                sourceSelector]) {
+
+        ((void (*)(id, SEL, int))objc_msgSend)(
+            manager,
+            sourceSelector,
+            1
+        );
+
+        return;
+    }
+
+
+    /*
+     * Không tìm thấy API lock.
+     *
+     * Cho phép thử lại ở chu kỳ sau.
+     */
+    @synchronized (self) {
+
+        _deviceLocked = NO;
+
+        _isEnteringSleep = NO;
+    }
+}
+
+
+#pragma mark - Device locked
+
+- (void)deviceDidLock
+{
+    @synchronized (self) {
+
+        _deviceLocked = YES;
+
+        _isEnteringSleep = NO;
+
+        /*
+         * Tuyệt đối không giữ timer khi
+         * thiết bị đang khóa.
+         */
+        dispatch_source_t timer =
+            _timer;
+
+        _timer = nil;
+
+        _started = NO;
+
+        if (timer != nil) {
+
+            dispatch_source_cancel(timer);
+        }
+    }
+}
+
+
+#pragma mark - Device unlocked
+
+- (void)deviceDidUnlock
+{
+    @synchronized (self) {
+
+        _deviceLocked = NO;
+
+        _isEnteringSleep = NO;
+
+        /*
+         * Unlock = bắt đầu một chu kỳ hoàn toàn mới.
+         */
+        _lastInteraction =
+            CFAbsoluteTimeGetCurrent();
+    }
+
+
+    if (_enabled) {
+
+        [self start];
+    }
 }
 
 
@@ -845,43 +826,6 @@ static void SleepModeTouchCallback(
 - (void)dealloc
 {
     [self stop];
-
-    CFNotificationCenterRemoveObserver(
-        CFNotificationCenterGetDarwinNotifyCenter(),
-
-        (__bridge const void *)self,
-
-        (__bridge CFStringRef)
-            kSleepTouchNotification,
-
-        NULL
-    );
 }
 
 @end
-
-
-#pragma mark - Darwin Touch Callback
-
-static void SleepModeTouchCallback(
-    CFNotificationCenterRef center,
-    void *observer,
-    CFStringRef name,
-    const void *object,
-    CFDictionaryRef userInfo
-)
-{
-    SleepManager *manager =
-        (__bridge SleepManager *)observer;
-
-    if (manager == nil) {
-        return;
-    }
-
-    dispatch_async(
-        dispatch_get_main_queue(),
-        ^{
-            [manager userDidInteract];
-        }
-    );
-}

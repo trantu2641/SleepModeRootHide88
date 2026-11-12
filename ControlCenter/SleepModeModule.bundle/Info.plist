@@ -5,7 +5,7 @@
 <dict>
 
     <key>CFBundleDevelopmentRegion</key>
-    <string>en</string>
+    <string>vi</string>
 
     <key>CFBundleDisplayName</key>
     <string>Chế độ ngủ</string>
@@ -30,6 +30,27 @@
 
     <key>CFBundleVersion</key>
     <string>1</string>
+
+    <key>CFBundleSupportedPlatforms</key>
+    <array>
+        <string>iPhoneOS</string>
+    </array>
+
+    <key>MinimumOSVersion</key>
+    <string>16.0</string>
+
+    <!-- QUAN TRỌNG -->
+    <key>NSPrincipalClass</key>
+    <string>SleepModeModule</string>
+
+    <key>UIDeviceFamily</key>
+    <array>
+        <integer>1</integer>
+        <integer>2</integer>
+    </array>
+
+    <key>CCSGetModuleSizeAtRuntime</key>
+    <false/>
 
     <key>CCSModuleSize</key>
     <dict>

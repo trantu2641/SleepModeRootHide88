@@ -2,6 +2,8 @@
 #import <UIKit/UIKit.h>
 #import <objc/runtime.h>
 
+#pragma mark - Constants
+
 static NSString * const SMEnabledKey =
     @"SleepModeEnabled";
 
@@ -37,7 +39,10 @@ static void SMSetEnabled(BOOL enabled)
 
     [defaults synchronize];
 
-    NSLog(@"[SleepMode] enabled = %d", enabled);
+    NSLog(
+        @"[SleepMode] enabled = %d",
+        enabled
+    );
 
     [[NSNotificationCenter defaultCenter]
         postNotificationName:SMCommandNotification
@@ -80,8 +85,10 @@ static void SMSetTimeout(NSTimeInterval timeout)
 
     [defaults synchronize];
 
-    NSLog(@"[SleepMode] timeout = %.0f seconds",
-          timeout);
+    NSLog(
+        @"[SleepMode] timeout = %.0f seconds",
+        timeout
+    );
 
     [[NSNotificationCenter defaultCenter]
         postNotificationName:SMCommandNotification
@@ -109,7 +116,7 @@ static void SMResetTimer(void)
 }
 
 
-#pragma mark - Window
+#pragma mark - Active Window
 
 static UIWindow *SMFindActiveWindow(void)
 {
@@ -164,11 +171,14 @@ static UIWindow *SMFindActiveWindow(void)
 
 
 static UIViewController *
-SMTopViewController(UIViewController *controller)
+SMTopViewController(
+    UIViewController *controller
+)
 {
     if (!controller) {
         return nil;
     }
+
 
     UIViewController *presented =
         controller.presentedViewController;
@@ -176,8 +186,11 @@ SMTopViewController(UIViewController *controller)
     if (presented &&
         !presented.isBeingDismissed) {
 
-        return SMTopViewController(presented);
+        return SMTopViewController(
+            presented
+        );
     }
+
 
     if ([controller isKindOfClass:
          [UINavigationController class]]) {
@@ -189,9 +202,12 @@ SMTopViewController(UIViewController *controller)
             navigation.visibleViewController;
 
         if (visible) {
-            return SMTopViewController(visible);
+            return SMTopViewController(
+                visible
+            );
         }
     }
+
 
     if ([controller isKindOfClass:
          [UITabBarController class]]) {
@@ -203,9 +219,12 @@ SMTopViewController(UIViewController *controller)
             tabs.selectedViewController;
 
         if (selected) {
-            return SMTopViewController(selected);
+            return SMTopViewController(
+                selected
+            );
         }
     }
+
 
     return controller;
 }
@@ -219,9 +238,14 @@ static void SMShowTimeoutMenu(void)
         SMFindActiveWindow();
 
     if (!window) {
-        NSLog(@"[SleepMode] Không tìm thấy active window");
+
+        NSLog(
+            @"[SleepMode] Không tìm thấy active window"
+        );
+
         return;
     }
+
 
     UIViewController *controller =
         SMTopViewController(
@@ -229,16 +253,26 @@ static void SMShowTimeoutMenu(void)
         );
 
     if (!controller) {
-        NSLog(@"[SleepMode] Không tìm thấy ViewController");
+
+        NSLog(
+            @"[SleepMode] Không tìm thấy ViewController"
+        );
+
         return;
     }
 
 
     UIAlertController *alert =
         [UIAlertController
-            alertControllerWithTitle:@"Thời gian tự khóa"
-            message:@"Chọn thời gian chờ"
-            preferredStyle:UIAlertControllerStyleActionSheet];
+            alertControllerWithTitle:
+                @"Thời gian tự khóa"
+
+            message:
+                @"Chọn thời gian chờ"
+
+            preferredStyle:
+                UIAlertControllerStyleActionSheet
+        ];
 
 
     NSArray *items = @[
@@ -291,24 +325,34 @@ static void SMShowTimeoutMenu(void)
         NSNumber *value =
             item[@"value"];
 
+
         BOOL selected =
-            fabs(current -
-                 value.doubleValue) < 0.5;
+            fabs(
+                current -
+                value.doubleValue
+            ) < 0.5;
 
 
         NSString *displayTitle =
             selected
-                ? [NSString stringWithFormat:
+                ?
+                [NSString stringWithFormat:
                     @"✓ %@",
                     title]
-                : title;
+                :
+                title;
 
 
         UIAlertAction *action =
             [UIAlertAction
-                actionWithTitle:displayTitle
-                style:UIAlertActionStyleDefault
-                handler:^(UIAlertAction *action) {
+                actionWithTitle:
+                    displayTitle
+
+                style:
+                    UIAlertActionStyleDefault
+
+                handler:
+                    ^(UIAlertAction *action) {
 
             (void)action;
 
@@ -328,26 +372,36 @@ static void SMShowTimeoutMenu(void)
 
     [alert addAction:
         [UIAlertAction
-            actionWithTitle:@"Hủy"
-            style:UIAlertActionStyleCancel
-            handler:nil]];
+            actionWithTitle:
+                @"Hủy"
+
+            style:
+                UIAlertActionStyleCancel
+
+            handler:nil
+        ]];
+
 
 
     UIPopoverPresentationController *popover =
         alert.popoverPresentationController;
 
+
     if (popover) {
 
-        popover.sourceView = window;
+        popover.sourceView =
+            window;
 
         popover.sourceRect =
             CGRectMake(
                 CGRectGetMidX(
                     window.bounds
                 ),
+
                 CGRectGetMidY(
                     window.bounds
                 ),
+
                 1.0,
                 1.0
             );
@@ -357,16 +411,23 @@ static void SMShowTimeoutMenu(void)
     }
 
 
-    [controller presentViewController:alert
-                             animated:YES
-                           completion:nil];
+    [controller
+        presentViewController:
+            alert
+
+        animated:YES
+
+        completion:nil
+    ];
 }
 
 
-#pragma mark - CCUIToggleModule Methods
+#pragma mark - Module State
 
-static BOOL SMIsSelected(id self,
-                         SEL _cmd)
+static BOOL SMIsSelected(
+    id self,
+    SEL _cmd
+)
 {
     (void)self;
     (void)_cmd;
@@ -375,19 +436,27 @@ static BOOL SMIsSelected(id self,
 }
 
 
-static void SMSetSelected(id self,
-                          SEL _cmd,
-                          BOOL selected)
+static void SMSetSelected(
+    id self,
+    SEL _cmd,
+    BOOL selected
+)
 {
     (void)self;
     (void)_cmd;
 
-    SMSetEnabled(selected);
+    SMSetEnabled(
+        selected
+    );
 }
 
 
-static NSString *SMIdentifier(id self,
-                              SEL _cmd)
+#pragma mark - Module Identity
+
+static NSString *SMIdentifier(
+    id self,
+    SEL _cmd
+)
 {
     (void)self;
     (void)_cmd;
@@ -396,8 +465,10 @@ static NSString *SMIdentifier(id self,
 }
 
 
-static NSString *SMTitle(id self,
-                         SEL _cmd)
+static NSString *SMTitle(
+    id self,
+    SEL _cmd
+)
 {
     (void)self;
     (void)_cmd;
@@ -406,9 +477,11 @@ static NSString *SMTitle(id self,
 }
 
 
-static void SMSetTitle(id self,
-                       SEL _cmd,
-                       NSString *title)
+static void SMSetTitle(
+    id self,
+    SEL _cmd,
+    NSString *title
+)
 {
     (void)self;
     (void)_cmd;
@@ -418,8 +491,10 @@ static void SMSetTitle(id self,
 
 #pragma mark - Icon
 
-static UIImage *SMIconImage(id self,
-                            SEL _cmd)
+static UIImage *SMIconImage(
+    id self,
+    SEL _cmd
+)
 {
     (void)self;
     (void)_cmd;
@@ -428,38 +503,46 @@ static UIImage *SMIconImage(id self,
 
         UIImageSymbolConfiguration *config =
             [UIImageSymbolConfiguration
-                configurationWithPointSize:24.0
-                weight:UIImageSymbolWeightMedium];
+                configurationWithPointSize:
+                    24.0
 
-        return
+                weight:
+                    UIImageSymbolWeightMedium
+            ];
+
+
+        UIImage *image =
             [UIImage
-                systemImageNamed:@"moon.fill"
-                withConfiguration:config];
+                systemImageNamed:
+                    @"moon.fill"
+
+                withConfiguration:
+                    config
+            ];
+
+        return image;
     }
 
     return nil;
 }
 
 
-static UIImage *SMSelectedIconImage(id self,
-                                    SEL _cmd)
+static UIImage *SMSelectedIconImage(
+    id self,
+    SEL _cmd
+)
 {
-    return SMIconImage(self, _cmd);
+    return SMIconImage(
+        self,
+        _cmd
+    );
 }
 
 
-static NSString *SMIconGlyph(id self,
-                             SEL _cmd)
-{
-    (void)self;
-    (void)_cmd;
-
-    return @"moon.fill";
-}
-
-
-static NSString *SMSelectedIconGlyph(id self,
-                                     SEL _cmd)
+static NSString *SMIconGlyph(
+    id self,
+    SEL _cmd
+)
 {
     (void)self;
     (void)_cmd;
@@ -468,9 +551,23 @@ static NSString *SMSelectedIconGlyph(id self,
 }
 
 
-static void SMSetSelectedGlyphColor(id self,
-                                    SEL _cmd,
-                                    UIColor *color)
+static NSString *SMSelectedIconGlyph(
+    id self,
+    SEL _cmd
+)
+{
+    (void)self;
+    (void)_cmd;
+
+    return @"moon.fill";
+}
+
+
+static void SMSetSelectedGlyphColor(
+    id self,
+    SEL _cmd,
+    UIColor *color
+)
 {
     (void)self;
     (void)_cmd;
@@ -480,8 +577,10 @@ static void SMSetSelectedGlyphColor(id self,
 
 #pragma mark - Content
 
-static BOOL SMHasContent(id self,
-                         SEL _cmd)
+static BOOL SMHasContent(
+    id self,
+    SEL _cmd
+)
 {
     (void)self;
     (void)_cmd;
@@ -491,8 +590,10 @@ static BOOL SMHasContent(id self,
 
 
 static UIViewController *
-SMContentViewController(id self,
-                        SEL _cmd)
+SMContentViewController(
+    id self,
+    SEL _cmd
+)
 {
     (void)self;
     (void)_cmd;
@@ -503,8 +604,10 @@ SMContentViewController(id self,
 
 #pragma mark - Interaction
 
-static void SMHandleTap(id self,
-                        SEL _cmd)
+static void SMHandleTap(
+    id self,
+    SEL _cmd
+)
 {
     (void)self;
     (void)_cmd;
@@ -512,12 +615,16 @@ static void SMHandleTap(id self,
     BOOL newState =
         !SMIsEnabled();
 
-    SMSetEnabled(newState);
+    SMSetEnabled(
+        newState
+    );
 }
 
 
-static void SMHandleLongPress(id self,
-                              SEL _cmd)
+static void SMHandleLongPress(
+    id self,
+    SEL _cmd
+)
 {
     (void)self;
     (void)_cmd;
@@ -526,26 +633,45 @@ static void SMHandleLongPress(id self,
 }
 
 
-#pragma mark - Runtime Class
+#pragma mark - Runtime Module
+
+static Class gSleepModeModuleClass = Nil;
+
+static id gSleepModeModuleInstance = nil;
+
 
 static Class SMCreateModuleClass(void)
 {
+    if (gSleepModeModuleClass) {
+        return gSleepModeModuleClass;
+    }
+
+
     Class existing =
-        NSClassFromString(@"SleepModeModule");
+        NSClassFromString(
+            @"SleepModeModule"
+        );
+
 
     if (existing) {
+
+        gSleepModeModuleClass =
+            existing;
+
         return existing;
     }
 
 
     Class base =
-        NSClassFromString(@"CCUIToggleModule");
+        NSClassFromString(
+            @"CCUIToggleModule"
+        );
 
 
     if (!base) {
 
         NSLog(
-            @"[SleepMode] CCUIToggleModule không tồn tại"
+            @"[SleepMode] ERROR: CCUIToggleModule không tồn tại"
         );
 
         return Nil;
@@ -563,7 +689,7 @@ static Class SMCreateModuleClass(void)
     if (!module) {
 
         NSLog(
-            @"[SleepMode] Không tạo được SleepModeModule"
+            @"[SleepMode] ERROR: objc_allocateClassPair thất bại"
         );
 
         return Nil;
@@ -682,15 +808,62 @@ static Class SMCreateModuleClass(void)
     );
 
 
-    objc_registerClassPair(module);
+    objc_registerClassPair(
+        module
+    );
+
+
+    gSleepModeModuleClass =
+        module;
 
 
     NSLog(
-        @"[SleepMode] SleepModeModule REGISTERED"
+        @"[SleepMode] SleepModeModule REGISTERED: %@",
+        module
     );
 
 
     return module;
+}
+
+
+static id SMCreateModuleInstance(void)
+{
+    if (gSleepModeModuleInstance) {
+        return gSleepModeModuleInstance;
+    }
+
+
+    Class moduleClass =
+        SMCreateModuleClass();
+
+
+    if (!moduleClass) {
+        return nil;
+    }
+
+
+    gSleepModeModuleInstance =
+        [[moduleClass alloc] init];
+
+
+    if (!gSleepModeModuleInstance) {
+
+        NSLog(
+            @"[SleepMode] ERROR: không tạo được module instance"
+        );
+
+        return nil;
+    }
+
+
+    NSLog(
+        @"[SleepMode] SleepModeModule instance = %@",
+        gSleepModeModuleInstance
+    );
+
+
+    return gSleepModeModuleInstance;
 }
 
 
@@ -704,6 +877,11 @@ static Class SMCreateModuleClass(void)
 
 + (void)load
 {
+    NSLog(
+        @"[SleepMode] SleepModeModule +load()"
+    );
+
+
     NSUserDefaults *defaults =
         [NSUserDefaults standardUserDefaults];
 
@@ -727,7 +905,14 @@ static Class SMCreateModuleClass(void)
     [defaults synchronize];
 
 
-    SMCreateModuleClass();
+    NSLog(
+        @"[SleepMode] Defaults: enabled=%d timeout=%.0f",
+        SMIsEnabled(),
+        SMCurrentTimeout()
+    );
+
+
+    SMCreateModuleInstance();
 }
 
 @end

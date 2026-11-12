@@ -18,7 +18,7 @@ jobs:
 
 
       # =====================================================
-      # 2. PREPARE SETTINGS
+      # 2. KIỂM TRA / CHUẨN BỊ SETTINGS
       # =====================================================
 
       - name: Prepare SleepMode Preferences
@@ -29,48 +29,75 @@ jobs:
           echo "PREPARE SLEEPMODE PREFS"
           echo "================================"
 
-          test -f SleepModePrefs/SleepModePrefs.m
-          test -f SleepModePrefs/Root.plist
-          test -f SleepModePrefs/Resources/icon.png
+          if [ ! -f SleepModePrefs/SleepModePrefs.m ]; then
+            echo "ERROR: SleepModePrefs/SleepModePrefs.m missing"
+            exit 1
+          fi
+
+          if [ ! -f SleepModePrefs/Root.plist ]; then
+            echo "ERROR: SleepModePrefs/Root.plist missing"
+            exit 1
+          fi
+
+          if [ ! -f SleepModePrefs/Resources/icon.png ]; then
+            echo "ERROR: SleepModePrefs/Resources/icon.png missing"
+            exit 1
+          fi
+
+          echo ""
+          echo "Creating correct PreferenceLoader entry..."
 
           cat > SleepModePrefs/entry.plist <<'EOF'
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
- "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-    <key>entry</key>
-    <dict>
-        <key>bundle</key>
-        <string>SleepModePrefs</string>
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+           "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+              <key>entry</key>
+              <dict>
+                  <key>bundle</key>
+                  <string>SleepModePrefs</string>
+          
+                  <key>cell</key>
+                  <string>PSLinkCell</string>
+          
+                  <key>detail</key>
+                  <string>SleepModePrefsListController</string>
+          
+                  <key>isController</key>
+                  <true/>
+          
+                  <key>label</key>
+                  <string>SleepMode</string>
+          
+                  <key>icon</key>
+                  <string>icon.png</string>
+              </dict>
+          </dict>
+          </plist>
+          EOF
 
-        <key>cell</key>
-        <string>PSLinkCell</string>
+          echo ""
+          echo "================================"
+          echo "ENTRY PLIST"
+          echo "================================"
 
-        <key>detail</key>
-        <string>SleepModePrefsListController</string>
+          cat SleepModePrefs/entry.plist
 
-        <key>isController</key>
-        <true/>
-
-        <key>label</key>
-        <string>SleepMode</string>
-
-        <key>icon</key>
-        <string>icon.png</string>
-    </dict>
-</dict>
-</plist>
-EOF
+          echo ""
+          echo "================================"
+          echo "PLIST VALIDATION"
+          echo "================================"
 
           plutil -lint SleepModePrefs/entry.plist
           plutil -lint SleepModePrefs/Root.plist
 
-          echo "Settings preparation: OK"
+          echo ""
+          echo "Settings plist: OK"
 
 
       # =====================================================
-      # 3. CONTROL CENTER CHECK
+      # 3. KIỂM TRA CONTROL CENTER
       # =====================================================
 
       - name: Check Control Center Removal
@@ -89,16 +116,17 @@ EOF
 
             echo ""
             echo "ERROR:"
-            echo "Control Center is still referenced."
+            echo "Control Center is still referenced by build files."
 
             exit 1
           fi
 
-          echo "Control Center references: NONE"
+          echo ""
+          echo "Control Center: NOT REFERENCED"
 
 
       # =====================================================
-      # 4. XCODE
+      # 4. CHỌN XCODE
       # =====================================================
 
       - name: Select Xcode 26.6
@@ -109,15 +137,21 @@ EOF
             -s /Applications/Xcode_26.6.app/Contents/Developer
 
           echo "================================"
-          echo "XCODE"
+          echo "XCODE VERSION"
           echo "================================"
 
           xcodebuild -version
+
+          echo ""
+          echo "================================"
+          echo "XCODE PATH"
+          echo "================================"
+
           xcode-select -p
 
 
       # =====================================================
-      # 5. DEPENDENCIES
+      # 5. CÀI DEPENDENCIES
       # =====================================================
 
       - name: Install dependencies
@@ -132,19 +166,24 @@ EOF
             perl \
             dpkg
 
-          echo ""
           echo "================================"
           echo "DEPENDENCIES"
           echo "================================"
 
-          command -v ldid
-          command -v dpkg-deb
-          command -v xz
-          command -v perl
+          echo "ldid:"
+          which ldid
+
+          echo ""
+          echo "perl:"
+          which perl
+
+          echo ""
+          echo "xz:"
+          which xz
 
 
       # =====================================================
-      # 6. ROOT HIDE THEOS
+      # 6. CÀI ROOT HIDE THEOS
       # =====================================================
 
       - name: Install RootHide Theos
@@ -161,10 +200,12 @@ EOF
           echo "THEOS=$HOME/theos" >> "$GITHUB_ENV"
 
           echo "================================"
-          echo "THEOS"
+          echo "THEOS INSTALLED"
           echo "================================"
 
-          echo "$HOME/theos"
+          echo "THEOS=$HOME/theos"
+
+          ls -la "$HOME/theos"
 
 
       # =====================================================
@@ -177,21 +218,36 @@ EOF
 
           export THEOS="$HOME/theos"
 
+          echo "================================"
+          echo "BOOTSTRAP THEOS"
+          echo "================================"
+
           chmod +x \
             "$THEOS/bin/update-theos"
 
           "$THEOS/bin/update-theos"
 
-          test -d "$THEOS/vendor/include"
-          test -d "$THEOS/vendor/lib"
-          test -f "$THEOS/makefiles/common.mk"
-
           echo ""
-          echo "Theos bootstrap: OK"
+          echo "================================"
+          echo "VENDOR CHECK"
+          echo "================================"
+
+          if [ ! -d "$THEOS/vendor/include" ]; then
+            echo "ERROR: vendor/include missing"
+            exit 1
+          fi
+
+          if [ ! -d "$THEOS/vendor/lib" ]; then
+            echo "ERROR: vendor/lib missing"
+            exit 1
+          fi
+
+          echo "vendor/include: OK"
+          echo "vendor/lib: OK"
 
 
       # =====================================================
-      # 8. DM.PL
+      # 8. CÀI dm.pl
       # =====================================================
 
       - name: Install dm.pl
@@ -218,13 +274,15 @@ EOF
 
           echo "$THEOS/bin" >> "$GITHUB_PATH"
 
-          test -f "$THEOS/bin/dm.pl"
+          echo "================================"
+          echo "dm.pl INSTALLED"
+          echo "================================"
 
-          echo "dm.pl: OK"
+          ls -lh "$THEOS/bin/dm.pl"
 
 
       # =====================================================
-      # 9. IPHONEOS 16.5 SDK
+      # 9. CÀI IPHONEOS 16.5 SDK
       # =====================================================
 
       - name: Install iPhoneOS 16.5 SDK
@@ -242,39 +300,41 @@ EOF
             https://github.com/theos/sdks.git \
             /tmp/theos-sdks
 
+          echo "================================"
+          echo "AVAILABLE IPHONEOS SDKS"
+          echo "================================"
+
+          find /tmp/theos-sdks \
+            -maxdepth 1 \
+            -type d \
+            -name "iPhoneOS*.sdk" \
+            -print
+
           if [ ! -d \
             "/tmp/theos-sdks/iPhoneOS16.5.sdk" ]; then
 
             echo ""
             echo "ERROR:"
-            echo "iPhoneOS16.5.sdk not found."
-
-            echo ""
-            echo "Available SDKs:"
-            find /tmp/theos-sdks \
-              -maxdepth 1 \
-              -type d \
-              -name "iPhoneOS*.sdk" \
-              -print
+            echo "iPhoneOS16.5.sdk was not found."
 
             exit 1
           fi
-
-          rm -rf \
-            "$THEOS/sdks/iPhoneOS16.5.sdk"
 
           cp -R \
             "/tmp/theos-sdks/iPhoneOS16.5.sdk" \
             "$THEOS/sdks/"
 
-          test -d \
-            "$THEOS/sdks/iPhoneOS16.5.sdk"
+          echo ""
+          echo "================================"
+          echo "SDK INSTALLED"
+          echo "================================"
 
-          echo "iPhoneOS16.5.sdk: OK"
+          ls -ld \
+            "$THEOS/sdks/iPhoneOS16.5.sdk"
 
 
       # =====================================================
-      # 10. VERIFY ENVIRONMENT
+      # 10. KIỂM TRA MÔI TRƯỜNG
       # =====================================================
 
       - name: Verify build environment
@@ -284,39 +344,83 @@ EOF
           export THEOS="$HOME/theos"
 
           echo "================================"
-          echo "ENVIRONMENT"
+          echo "THEOS"
           echo "================================"
 
-          echo "THEOS:"
           echo "$THEOS"
 
           echo ""
-          echo "XCODE:"
-          xcodebuild -version
+          echo "================================"
+          echo "THEOS VENDOR"
+          echo "================================"
+
+          if [ ! -d "$THEOS/vendor/include" ]; then
+            echo "ERROR: vendor/include not found"
+            exit 1
+          fi
+
+          if [ ! -d "$THEOS/vendor/lib" ]; then
+            echo "ERROR: vendor/lib not found"
+            exit 1
+          fi
+
+          echo "vendor/include: OK"
+          echo "vendor/lib: OK"
 
           echo ""
-          echo "LDID:"
-          ldid -h 2>&1 | head -n 2 || true
+          echo "================================"
+          echo "dm.pl"
+          echo "================================"
 
-          echo ""
-          echo "DPKG:"
-          dpkg-deb --version | head -n 2
+          if [ ! -f "$THEOS/bin/dm.pl" ]; then
+            echo "ERROR: dm.pl not found"
+            exit 1
+          fi
 
-          echo ""
-          echo "SDK:"
-          ls -ld "$THEOS/sdks/iPhoneOS16.5.sdk"
-
-          echo ""
-          echo "COMMON.MK:"
-          ls -lh "$THEOS/makefiles/common.mk"
-
-          echo ""
-          echo "DM.PL:"
           ls -lh "$THEOS/bin/dm.pl"
+
+          echo ""
+          echo "================================"
+          echo "LDID"
+          echo "================================"
+
+          if ! command -v ldid >/dev/null 2>&1; then
+            echo "ERROR: ldid not found"
+            exit 1
+          fi
+
+          which ldid
+
+          echo ""
+          echo "================================"
+          echo "SDK"
+          echo "================================"
+
+          if [ ! -d \
+            "$THEOS/sdks/iPhoneOS16.5.sdk" ]; then
+
+            echo "ERROR: SDK not found"
+            exit 1
+          fi
+
+          ls -ld \
+            "$THEOS/sdks/iPhoneOS16.5.sdk"
+
+          echo ""
+          echo "================================"
+          echo "THEOS COMMON.MK"
+          echo "================================"
+
+          if [ -f "$THEOS/makefiles/common.mk" ]; then
+            echo "common.mk: OK"
+          else
+            echo "ERROR: common.mk not found"
+            exit 1
+          fi
 
 
       # =====================================================
-      # 11. CHECK PROJECT
+      # 11. KIỂM TRA PROJECT
       # =====================================================
 
       - name: Check SleepMode project
@@ -327,30 +431,27 @@ EOF
           echo "PROJECT FILES"
           echo "================================"
 
-          echo ""
-          echo "--- SleepMode ---"
-
           find SleepMode \
             -maxdepth 2 \
             -type f \
-            -print \
-            | sort
+            -print
 
           echo ""
-          echo "--- SleepModePrefs ---"
+          echo "================================"
+          echo "PREFERENCE FILES"
+          echo "================================"
 
           find SleepModePrefs \
             -maxdepth 3 \
             -type f \
-            -print \
-            | sort
+            -print
 
           echo ""
           echo "================================"
           echo "REQUIRED FILES"
           echo "================================"
 
-          FILES="
+          REQUIRED_FILES="
           SleepMode/Makefile
           SleepMode/SleepMode.plist
           SleepMode/Tweak.xm
@@ -363,10 +464,11 @@ EOF
           SleepModePrefs/Resources/icon.png
           "
 
-          for FILE in $FILES
+          for FILE in $REQUIRED_FILES
           do
             if [ ! -f "$FILE" ]; then
-              echo "ERROR: $FILE"
+              echo "ERROR: Missing file:"
+              echo "$FILE"
               exit 1
             fi
 
@@ -375,7 +477,7 @@ EOF
 
           echo ""
           echo "================================"
-          echo "PLIST CHECK"
+          echo "PLIST VALIDATION"
           echo "================================"
 
           plutil -lint SleepMode/SleepMode.plist
@@ -383,20 +485,31 @@ EOF
           plutil -lint SleepModePrefs/entry.plist
 
           echo ""
-          echo "Project check: OK"
+          echo "All project files: OK"
 
 
       # =====================================================
-      # 12. CHECK SETTINGS CONFIG
+      # 12. KIỂM TRA SETTINGS CONFIG
       # =====================================================
 
-      - name: Check Settings Configuration
+      - name: Check SleepMode Settings Configuration
         run: |
           set -e
 
           echo "================================"
-          echo "SETTINGS CONFIGURATION"
+          echo "SLEEPMODE SETTINGS CONFIG"
           echo "================================"
+
+          echo ""
+          echo "entry.plist:"
+          cat SleepModePrefs/entry.plist
+
+          echo ""
+          echo "Root.plist:"
+          cat SleepModePrefs/Root.plist
+
+          echo ""
+          echo "Checking required identifiers..."
 
           grep -q \
             "SleepModePrefsListController" \
@@ -414,100 +527,32 @@ EOF
             "com.trantu.sleepmode.settingsChanged" \
             SleepModePrefs/Root.plist
 
-          echo "Controller: OK"
-          echo "Enabled key: OK"
-          echo "Timeout key: OK"
-          echo "Notification: OK"
+          echo ""
+          echo "Settings configuration: OK"
 
 
       # =====================================================
-      # 13. BUILD SETTINGS BUNDLE
+      # 13. BUILD
       # =====================================================
 
-      - name: Build SleepModePrefs
+      - name: Fix Main Makefile for Separate Preferences Bundle
         run: |
           set -e
 
-          export THEOS="$HOME/theos"
-
           echo "================================"
-          echo "BUILD SLEEPMODE PREFS"
+          echo "FIX MAIN MAKEFILE"
           echo "================================"
 
-          rm -rf SleepModePrefs/packages
-          rm -rf SleepModePrefs/obj
-
-          make \
-            -C SleepModePrefs \
-            clean
-
-          make \
-            -C SleepModePrefs \
-            package \
-            FINALPACKAGE=1 \
-            THEOS_PACKAGE_SCHEME=roothide
-
-          echo ""
-          echo "================================"
-          echo "PREFS PACKAGE"
-          echo "================================"
-
-          find SleepModePrefs/packages \
-            -maxdepth 1 \
-            -type f \
-            -name "*.deb" \
-            -print
-
-          PREF_DEB=$(
-            find SleepModePrefs/packages \
-              -maxdepth 1 \
-              -type f \
-              -name "*.deb" \
-              | head -n 1
-          )
-
-          if [ -z "$PREF_DEB" ]; then
-            echo "ERROR: SleepModePrefs .deb not found"
-            exit 1
+          if grep -qE '^[[:space:]]*SUBPROJECTS[[:space:]]*\+=[[:space:]]*SleepModePrefs[[:space:]]*$' SleepMode/Makefile; then
+            sed -i.bak '/^[[:space:]]*SUBPROJECTS[[:space:]]*+=[[:space:]]*SleepModePrefs[[:space:]]*$/d' SleepMode/Makefile
+            echo "Removed invalid sibling SUBPROJECTS reference."
+          else
+            echo "No invalid SUBPROJECTS reference found."
           fi
 
           echo ""
-          echo "Prefs DEB:"
-          echo "$PREF_DEB"
-
-          rm -rf /tmp/sleepmode-prefs
-          mkdir -p /tmp/sleepmode-prefs
-
-          dpkg-deb -x \
-            "$PREF_DEB" \
-            /tmp/sleepmode-prefs
-
-          echo ""
-          echo "================================"
-          echo "EXTRACTED PREFS"
-          echo "================================"
-
-          find /tmp/sleepmode-prefs \
-            -type f \
-            -print \
-            | sort
-
-          test -d \
-            "/tmp/sleepmode-prefs/Library/PreferenceBundles/SleepModePrefs.bundle"
-
-          test -f \
-            "/tmp/sleepmode-prefs/Library/PreferenceBundles/SleepModePrefs.bundle/Root.plist"
-
-          test -f \
-            "/tmp/sleepmode-prefs/Library/PreferenceBundles/SleepModePrefs.bundle/icon.png"
-
-          echo ""
-          echo "SleepModePrefs.bundle: OK"
-
-
-      # =====================================================
-      # 14. BUILD MAIN TWEAK
-      # =====================================================
+          echo "SleepMode/Makefile:"
+          cat SleepMode/Makefile
 
       - name: Build SleepMode
         run: |
@@ -516,25 +561,192 @@ EOF
           export THEOS="$HOME/theos"
 
           echo "================================"
-          echo "BUILD SLEEPMODE"
+          echo "BUILD ROOT"
           echo "================================"
 
-          rm -rf SleepMode/packages
-          rm -rf SleepMode/obj
-
-          make \
-            -C SleepMode \
-            clean
-
-          make \
-            -C SleepMode \
-            package \
-            FINALPACKAGE=1 \
-            THEOS_PACKAGE_SCHEME=roothide
+          pwd
 
           echo ""
           echo "================================"
-          echo "MAIN PACKAGE"
+          echo "SLEEPMODE DIRECTORY"
+          echo "================================"
+
+          ls -la SleepMode
+
+          echo ""
+          echo "================================"
+          echo "SLEEPMODE PREFS DIRECTORY"
+          echo "================================"
+
+          ls -la SleepModePrefs
+
+          echo ""
+          echo "================================"
+          echo "TARGET"
+          echo "================================"
+
+          grep "^TARGET" SleepMode/Makefile || true
+
+          echo ""
+          echo "================================"
+          echo "ARCHS"
+          echo "================================"
+
+          grep "^ARCHS" SleepMode/Makefile || true
+
+          echo ""
+          echo "================================"
+          echo "PACKAGE SCHEME"
+          echo "================================"
+
+          grep "THEOS_PACKAGE_SCHEME" SleepMode/Makefile || true
+
+          echo ""
+          echo "================================"
+          echo "CLEAN PREFS"
+          echo "================================"
+
+          make -C SleepModePrefs clean
+
+          echo ""
+          echo "================================"
+          echo "BUILD PREFS PACKAGE"
+          echo "================================"
+
+          make -C SleepModePrefs package FINALPACKAGE=1 THEOS_PACKAGE_SCHEME=roothide
+
+          PREFS_DEB="$(
+            find SleepModePrefs/packages \
+              -maxdepth 1 \
+              -type f \
+              -name "*.deb" \
+              | head -n 1
+          )"
+
+          if [ -z "$PREFS_DEB" ] || [ ! -f "$PREFS_DEB" ]; then
+            echo "ERROR: SleepModePrefs .deb was not generated."
+            exit 1
+          fi
+
+          echo "Prefs package: $PREFS_DEB"
+
+          echo ""
+          echo "================================"
+          echo "EXTRACT PREFS PACKAGE"
+          echo "================================"
+
+          rm -rf /tmp/sleepmode-prefs
+          mkdir -p /tmp/sleepmode-prefs
+
+          dpkg-deb -x "$PREFS_DEB" /tmp/sleepmode-prefs
+
+          if [ ! -d "/tmp/sleepmode-prefs/Library/PreferenceBundles/SleepModePrefs.bundle" ]; then
+            echo "ERROR: SleepModePrefs.bundle missing from prefs package."
+            exit 1
+          fi
+
+          if [ ! -f "/tmp/sleepmode-prefs/Library/PreferenceLoader/Preferences/SleepModePrefs.plist" ]; then
+            echo "ERROR: SleepModePrefs.plist missing from prefs package."
+            exit 1
+          fi
+
+          echo "SleepModePrefs.bundle: OK"
+          echo "SleepModePrefs.plist: OK"
+
+          echo ""
+          echo "================================"
+          echo "CLEAN MAIN PROJECT"
+          echo "================================"
+
+          make -C SleepMode clean
+
+          echo ""
+          echo "================================"
+          echo "BUILD MAIN TWEAK"
+          echo "================================"
+
+          make -C SleepMode package FINALPACKAGE=1 THEOS_PACKAGE_SCHEME=roothide
+
+          MAIN_DEB="$(
+            find SleepMode/packages \
+              -maxdepth 1 \
+              -type f \
+              -name "*.deb" \
+              | head -n 1
+          )"
+
+          if [ -z "$MAIN_DEB" ] || [ ! -f "$MAIN_DEB" ]; then
+            echo "ERROR: SleepMode .deb was not generated."
+            exit 1
+          fi
+
+          echo "Main package: $MAIN_DEB"
+
+          echo ""
+          echo "================================"
+          echo "MERGE PREFS INTO MAIN PACKAGE"
+          echo "================================"
+
+          rm -rf /tmp/sleepmode-main
+          mkdir -p /tmp/sleepmode-main
+
+          dpkg-deb -x "$MAIN_DEB" /tmp/sleepmode-main
+
+          mkdir -p /tmp/sleepmode-main/DEBIAN
+          dpkg-deb -e "$MAIN_DEB" /tmp/sleepmode-main/DEBIAN
+
+          mkdir -p /tmp/sleepmode-main/Library/PreferenceBundles
+          cp -R \
+            /tmp/sleepmode-prefs/Library/PreferenceBundles/SleepModePrefs.bundle \
+            /tmp/sleepmode-main/Library/PreferenceBundles/
+
+          mkdir -p /tmp/sleepmode-main/Library/PreferenceLoader/Preferences
+          cp \
+            /tmp/sleepmode-prefs/Library/PreferenceLoader/Preferences/SleepModePrefs.plist \
+            /tmp/sleepmode-main/Library/PreferenceLoader/Preferences/
+
+          if [ ! -d "/tmp/sleepmode-main/Library/PreferenceBundles/SleepModePrefs.bundle" ]; then
+            echo "ERROR: Failed to merge SleepModePrefs.bundle."
+            exit 1
+          fi
+
+          if [ ! -f "/tmp/sleepmode-main/Library/PreferenceLoader/Preferences/SleepModePrefs.plist" ]; then
+            echo "ERROR: Failed to merge PreferenceLoader plist."
+            exit 1
+          fi
+
+          echo "Prefs bundle merged: OK"
+          echo "PreferenceLoader entry merged: OK"
+
+          echo ""
+          echo "================================"
+          echo "REBUILD FINAL DEB"
+          echo "================================"
+
+          rm -f "$MAIN_DEB"
+          dpkg-deb --build /tmp/sleepmode-main "$MAIN_DEB"
+
+          echo ""
+          echo "================================"
+          echo "FINAL BUILD OUTPUT"
+          echo "================================"
+
+          ls -lh "$MAIN_DEB"
+          dpkg-deb -I "$MAIN_DEB" >/dev/null
+
+          echo "Final DEB: OK"
+
+
+      # =====================================================
+      # 14. KIỂM TRA DEB
+      # =====================================================
+
+      - name: Verify DEB
+        run: |
+          set -e
+
+          echo "================================"
+          echo "DEB FILES"
           echo "================================"
 
           find SleepMode/packages \
@@ -543,169 +755,65 @@ EOF
             -name "*.deb" \
             -print
 
-          MAIN_DEB=$(
+          DEB_COUNT=$(
             find SleepMode/packages \
               -maxdepth 1 \
               -type f \
               -name "*.deb" \
-              | head -n 1
+              | wc -l
           )
 
-          if [ -z "$MAIN_DEB" ]; then
-            echo "ERROR: Main SleepMode .deb not found"
+          if [ "$DEB_COUNT" -eq 0 ]; then
+            echo ""
+            echo "ERROR: No .deb package generated."
             exit 1
           fi
-
-          echo ""
-          echo "Main DEB:"
-          echo "$MAIN_DEB"
-
-
-      # =====================================================
-      # 15. INJECT SETTINGS INTO MAIN DEB
-      # =====================================================
-
-      - name: Inject SleepMode Settings into DEB
-        run: |
-          set -e
-
-          echo "================================"
-          echo "INJECT SETTINGS INTO MAIN DEB"
-          echo "================================"
-
-          MAIN_DEB=$(
-            find SleepMode/packages \
-              -maxdepth 1 \
-              -type f \
-              -name "*.deb" \
-              | head -n 1
-          )
-
-          if [ -z "$MAIN_DEB" ]; then
-            echo "ERROR: Main DEB not found"
-            exit 1
-          fi
-
-          rm -rf /tmp/sleepmode-main
-          rm -rf /tmp/sleepmode-control
-
-          mkdir -p /tmp/sleepmode-main
-          mkdir -p /tmp/sleepmode-control
-
-          echo ""
-          echo "Extracting main DEB..."
-
-          dpkg-deb -x \
-            "$MAIN_DEB" \
-            /tmp/sleepmode-main
-
-          dpkg-deb -e \
-            "$MAIN_DEB" \
-            /tmp/sleepmode-control
-
-          echo ""
-          echo "Copying PreferenceBundle..."
-
-          mkdir -p \
-            /tmp/sleepmode-main/Library/PreferenceBundles
-
-          cp -R \
-            /tmp/sleepmode-prefs/Library/PreferenceBundles/SleepModePrefs.bundle \
-            /tmp/sleepmode-main/Library/PreferenceBundles/
-
-          echo ""
-          echo "Copying PreferenceLoader entry..."
-
-          mkdir -p \
-            /tmp/sleepmode-main/Library/PreferenceLoader/Preferences
-
-          cp \
-            SleepModePrefs/entry.plist \
-            /tmp/sleepmode-main/Library/PreferenceLoader/Preferences/SleepModePrefs.plist
-
-          echo ""
-          echo "================================"
-          echo "VERIFY INJECTED FILES"
-          echo "================================"
-
-          test -d \
-            /tmp/sleepmode-main/Library/PreferenceBundles/SleepModePrefs.bundle
-
-          test -f \
-            /tmp/sleepmode-main/Library/PreferenceBundles/SleepModePrefs.bundle/Root.plist
-
-          test -f \
-            /tmp/sleepmode-main/Library/PreferenceBundles/SleepModePrefs.bundle/icon.png
-
-          test -f \
-            /tmp/sleepmode-main/Library/PreferenceLoader/Preferences/SleepModePrefs.plist
-
-          echo "PreferenceBundle: OK"
-          echo "PreferenceLoader: OK"
-
-          echo ""
-          echo "Rebuilding final DEB..."
-
-          rm -f "$MAIN_DEB"
-
-          dpkg-deb \
-            --build \
-            /tmp/sleepmode-main \
-            "$MAIN_DEB"
-
-          echo ""
-          echo "================================"
-          echo "FINAL DEB CREATED"
-          echo "================================"
-
-          ls -lh "$MAIN_DEB"
-
-
-      # =====================================================
-      # 16. VERIFY FINAL DEB
-      # =====================================================
-
-      - name: Verify Final DEB
-        run: |
-          set -e
-
-          echo "================================"
-          echo "VERIFY FINAL PACKAGE"
-          echo "================================"
 
           DEB=$(
             find SleepMode/packages \
               -maxdepth 1 \
               -type f \
               -name "*.deb" \
+              ! -name "*Prefs*" \
               | head -n 1
           )
 
-          if [ -z "$DEB" ]; then
-            echo "ERROR: Final DEB not found"
-            exit 1
-          fi
+          echo ""
+          echo "================================"
+          echo "SELECTED DEB"
+          echo "================================"
 
-          rm -rf /tmp/final-sleepmode
-          mkdir -p /tmp/final-sleepmode
+          echo "$DEB"
+
+
+          # =================================================
+          # EXTRACT
+          # =================================================
+
+          rm -rf /tmp/sleepmode-deb
+          mkdir -p /tmp/sleepmode-deb
 
           dpkg-deb -x \
             "$DEB" \
-            /tmp/final-sleepmode
+            /tmp/sleepmode-deb
+
+
+          # =================================================
+          # PACKAGE CONTENT
+          # =================================================
 
           echo ""
           echo "================================"
           echo "PACKAGE CONTENT"
           echo "================================"
 
-          find /tmp/final-sleepmode \
+          find /tmp/sleepmode-deb \
             -type f \
-            -print \
             | sort
 
 
           # =================================================
-          # TWEAK
+          # CHECK TWEAK
           # =================================================
 
           echo ""
@@ -713,14 +821,18 @@ EOF
           echo "CHECK TWEAK"
           echo "================================"
 
-          test -f \
-            "/tmp/final-sleepmode/Library/MobileSubstrate/DynamicLibraries/SleepMode.dylib"
+          if [ ! -f \
+            "/tmp/sleepmode-deb/Library/MobileSubstrate/DynamicLibraries/SleepMode.dylib" ]; then
+
+            echo "ERROR: SleepMode.dylib missing"
+            exit 1
+          fi
 
           echo "SleepMode.dylib: OK"
 
 
           # =================================================
-          # SETTINGS BUNDLE
+          # CHECK SETTINGS BUNDLE
           # =================================================
 
           echo ""
@@ -728,42 +840,90 @@ EOF
           echo "CHECK SETTINGS BUNDLE"
           echo "================================"
 
-          PREF_BUNDLE="/tmp/final-sleepmode/Library/PreferenceBundles/SleepModePrefs.bundle"
+          PREF_BUNDLE="/tmp/sleepmode-deb/Library/PreferenceBundles/SleepModePrefs.bundle"
 
-          PREF_ENTRY="/tmp/final-sleepmode/Library/PreferenceLoader/Preferences/SleepModePrefs.plist"
+          PREF_ENTRY="/tmp/sleepmode-deb/Library/PreferenceLoader/Preferences/SleepModePrefs.plist"
 
-          test -d "$PREF_BUNDLE"
-          test -f "$PREF_BUNDLE/Root.plist"
-          test -f "$PREF_BUNDLE/icon.png"
-          test -f "$PREF_ENTRY"
+          if [ ! -d "$PREF_BUNDLE" ]; then
+            echo "ERROR: SleepModePrefs.bundle missing"
+            exit 1
+          fi
+
+          if [ ! -f "$PREF_ENTRY" ]; then
+            echo "ERROR: SleepModePrefs.plist missing"
+            exit 1
+          fi
 
           echo "SleepModePrefs.bundle: OK"
-          echo "Root.plist: OK"
-          echo "icon.png: OK"
-          echo "PreferenceLoader: OK"
+          echo "PreferenceLoader entry: OK"
 
 
           # =================================================
-          # PLIST
+          # CHECK PREFS EXECUTABLE
           # =================================================
 
           echo ""
           echo "================================"
-          echo "CHECK PLISTS"
+          echo "CHECK PREFS BUNDLE FILES"
+          echo "================================"
+
+          find "$PREF_BUNDLE" \
+            -maxdepth 2 \
+            -type f \
+            -print
+
+          if [ ! -f \
+            "$PREF_BUNDLE/Root.plist" ]; then
+
+            echo "ERROR: Root.plist missing"
+            exit 1
+          fi
+
+          if [ ! -f \
+            "$PREF_BUNDLE/icon.png" ]; then
+
+            echo "ERROR: icon.png missing"
+            exit 1
+          fi
+
+          echo "Root.plist: OK"
+          echo "icon.png: OK"
+
+
+          # =================================================
+          # CHECK ROOT PLIST
+          # =================================================
+
+          echo ""
+          echo "================================"
+          echo "CHECK ROOT.PLIST"
           echo "================================"
 
           plutil -lint \
             "$PREF_BUNDLE/Root.plist"
 
-          plutil -lint \
-            "$PREF_ENTRY"
-
           echo "Root.plist: OK"
-          echo "PreferenceLoader plist: OK"
 
 
           # =================================================
-          # SETTINGS KEYS
+          # CHECK PREFERENCELOADER
+          # =================================================
+
+          echo ""
+          echo "================================"
+          echo "CHECK PREFERENCELOADER"
+          echo "================================"
+
+          plutil -lint \
+            "$PREF_ENTRY"
+
+          echo ""
+          echo "PreferenceLoader entry:"
+          cat "$PREF_ENTRY"
+
+
+          # =================================================
+          # CHECK REQUIRED SETTINGS
           # =================================================
 
           echo ""
@@ -794,7 +954,7 @@ EOF
 
 
           # =================================================
-          # CONTROL CENTER
+          # CHECK CONTROL CENTER
           # =================================================
 
           echo ""
@@ -802,14 +962,14 @@ EOF
           echo "CHECK CONTROL CENTER"
           echo "================================"
 
-          if find /tmp/final-sleepmode \
+          if find /tmp/sleepmode-deb \
             -type f \
             | grep -Ei \
               "SleepModeModule|SleepModeProvider|SleepControlCenter"; then
 
             echo ""
             echo "ERROR:"
-            echo "Control Center component found in final DEB."
+            echo "Control Center files found in package."
 
             exit 1
           fi
@@ -818,52 +978,70 @@ EOF
 
 
           # =================================================
-          # PACKAGE INFO
+          # FINAL RESULT
           # =================================================
 
           echo ""
           echo "================================"
-          echo "PACKAGE INFO"
+          echo "SLEEPMODE PACKAGE: OK"
           echo "================================"
 
-          dpkg-deb -I "$DEB"
+          echo ""
+          echo "DEB:"
+          echo "$DEB"
 
-
-          # =================================================
-          # FINAL
-          # =================================================
+          echo ""
+          echo "Settings:"
+          echo "  - PreferenceLoader: OK"
+          echo "  - PreferenceBundle: OK"
+          echo "  - Root.plist: OK"
+          echo "  - entry.plist: OK"
+          echo "  - icon: OK"
+          echo "  - Settings controller: OK"
+          echo "  - Darwin notification: OK"
+          echo "  - Control Center: removed"
 
           echo ""
           echo "================================"
           echo "BUILD SUCCESS"
           echo "================================"
 
-          echo ""
-          echo "Final DEB:"
-          echo "$DEB"
+
+      # =====================================================
+      # 15. PACKAGE INFORMATION
+      # =====================================================
+
+      - name: Show package information
+        run: |
+          set -e
+
+          echo "================================"
+          echo "PACKAGE INFORMATION"
+          echo "================================"
+
+          find SleepMode/packages \
+            -type f \
+            -name "*.deb" \
+            -exec ls -lh {} \;
 
           echo ""
-          echo "Included:"
-          echo "  [OK] SleepMode.dylib"
-          echo "  [OK] SleepModePrefs.bundle"
-          echo "  [OK] Root.plist"
-          echo "  [OK] icon.png"
-          echo "  [OK] PreferenceLoader plist"
-          echo "  [OK] Settings controller"
-          echo "  [OK] Darwin notification"
-          echo "  [OK] Control Center removed"
+          echo "================================"
+          echo "DPKG INFORMATION"
+          echo "================================"
+
+          for DEB in SleepMode/packages/*.deb
+          do
+            dpkg-deb -I "$DEB"
+          done
 
 
       # =====================================================
-      # 17. UPLOAD
+      # 16. UPLOAD DEB
       # =====================================================
 
       - name: Upload DEB
         uses: actions/upload-artifact@v4
-
         with:
           name: SleepMode-RootHide
           path: |
             SleepMode/packages/*.deb
-
-          if-no-files-found: error

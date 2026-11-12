@@ -2,29 +2,13 @@
 #import <UIKit/UIKit.h>
 
 @protocol CCSModuleProvider <NSObject>
-
-@required
+@optional
 
 - (NSUInteger)numberOfProvidedModules;
 
-- (NSString *)identifierForModuleAtIndex:
-    (NSUInteger)index;
-
-- (id)moduleInstanceForModuleIdentifier:
-    (NSString *)identifier;
+- (NSString *)identifierForModuleAtIndex:(NSUInteger)index;
 
 - (NSString *)displayNameForModuleIdentifier:
-    (NSString *)identifier;
-
-@optional
-
-- (NSSet *)supportedDeviceFamiliesForModuleWithIdentifier:
-    (NSString *)identifier;
-
-- (NSSet *)requiredDeviceCapabilitiesForModuleWithIdentifier:
-    (NSString *)identifier;
-
-- (NSSet *)requiredDeviceIncapabilitiesForModuleWithIdentifier:
     (NSString *)identifier;
 
 - (NSString *)associatedBundleIdentifierForModuleWithIdentifier:
@@ -33,26 +17,35 @@
 - (NSString *)associatedBundleMinimumVersionForModuleWithIdentifier:
     (NSString *)identifier;
 
-- (NSUInteger)visibilityPreferenceForModuleWithIdentifier:
+- (id)moduleInstanceForModuleIdentifier:
     (NSString *)identifier;
 
 - (UIImage *)settingsIconForModuleIdentifier:
     (NSString *)identifier;
 
+- (NSUInteger)supportedDeviceFamiliesForModuleWithIdentifier:
+    (NSString *)identifier;
+
+- (id)requiredDeviceCapabilitiesForModuleWithIdentifier:
+    (NSString *)identifier;
+
+- (id)requiredDeviceIncapabilitiesForModuleWithIdentifier:
+    (NSString *)identifier;
+
+- (NSUInteger)visibilityPreferenceForModuleWithIdentifier:
+    (NSString *)identifier;
+
 @end
 
 
-static NSString * const SleepModeIdentifier =
-    @"com.trantu.sleepmode";
-
-
-@interface SleepModeProvider :
-    NSObject <CCSModuleProvider>
+@interface SleepModeProvider : NSObject
+<CCSModuleProvider>
 @end
 
 
 @implementation SleepModeProvider
 
+#pragma mark - Provider
 
 - (NSUInteger)numberOfProvidedModules
 {
@@ -63,103 +56,97 @@ static NSString * const SleepModeIdentifier =
 - (NSString *)identifierForModuleAtIndex:
     (NSUInteger)index
 {
-    if (index != 0) {
-        return nil;
+    if (index == 0) {
+        return @"com.trantu.sleepmode";
     }
 
-    return SleepModeIdentifier;
+    return nil;
 }
 
 
 - (NSString *)displayNameForModuleIdentifier:
     (NSString *)identifier
 {
-    if (![identifier isEqualToString:
-          SleepModeIdentifier]) {
-        return nil;
+    if ([identifier isEqualToString:
+            @"com.trantu.sleepmode"]) {
+
+        return @"Chế độ ngủ";
     }
 
-    return @"Chế độ ngủ";
+    return nil;
 }
 
 
-- (NSSet *)supportedDeviceFamiliesForModuleWithIdentifier:
+#pragma mark - Module Bundle
+
+- (NSString *)associatedBundleIdentifierForModuleWithIdentifier:
     (NSString *)identifier
 {
-    if (![identifier isEqualToString:
-          SleepModeIdentifier]) {
-        return nil;
+    if ([identifier isEqualToString:
+            @"com.trantu.sleepmode"]) {
+
+        return @"com.trantu.sleepmode.module";
     }
 
-    return [NSSet setWithObjects:
-        @1,
-        @2,
-        nil
-    ];
+    return nil;
 }
 
 
-- (UIImage *)settingsIconForModuleIdentifier:
+- (NSString *)associatedBundleMinimumVersionForModuleWithIdentifier:
     (NSString *)identifier
 {
-    if (![identifier isEqualToString:
-          SleepModeIdentifier]) {
-        return nil;
+    if ([identifier isEqualToString:
+            @"com.trantu.sleepmode"]) {
+
+        return @"1.6.0";
     }
 
-    NSBundle *bundle =
-        [NSBundle bundleForClass:[self class]];
-
-    NSString *path =
-        [bundle pathForResource:
-            @"SleepModeProviderIcon"
-            ofType:@"png"];
-
-    if (!path) {
-        return nil;
-    }
-
-    return [UIImage imageWithContentsOfFile:path];
+    return nil;
 }
 
+
+#pragma mark - Module Instance
 
 - (id)moduleInstanceForModuleIdentifier:
     (NSString *)identifier
 {
     if (![identifier isEqualToString:
-          SleepModeIdentifier]) {
+            @"com.trantu.sleepmode"]) {
 
         return nil;
     }
 
 
-    NSString *modulePath =
-        @"/Library/ControlCenter/Bundles/SleepModeModule.bundle";
+    NSString *path =
+        @"/Library/ControlCenter/Bundles/"
+         "SleepModeModule.bundle";
 
 
-    NSBundle *moduleBundle =
-        [NSBundle bundleWithPath:modulePath];
+    NSBundle *bundle =
+        [NSBundle bundleWithPath:path];
 
 
-    if (!moduleBundle) {
+    if (!bundle) {
+
+        NSLog(@"[SleepModeProvider] "
+              @"Không tìm thấy SleepModeModule.bundle");
+
         return nil;
     }
 
 
-    NSError *error = nil;
+    if (![bundle isLoaded]) {
 
-    BOOL loaded =
-        [moduleBundle loadAndReturnError:&error];
+        BOOL loaded =
+            [bundle load];
 
+        if (!loaded) {
 
-    if (!loaded) {
+            NSLog(@"[SleepModeProvider] "
+                  @"Không load được module bundle");
 
-        NSLog(
-            @"[SleepMode] Không load được SleepModeModule.bundle: %@",
-            error
-        );
-
-        return nil;
+            return nil;
+        }
     }
 
 
@@ -168,20 +155,107 @@ static NSString * const SleepModeIdentifier =
 
 
     if (!moduleClass) {
+
+        NSLog(@"[SleepModeProvider] "
+              @"Không tìm thấy class SleepModeModule");
+
         return nil;
     }
 
 
-    id module =
+    id instance =
         [[moduleClass alloc] init];
 
 
-    if (!module) {
+    NSLog(@"[SleepModeProvider] "
+          @"Đã tạo SleepModeModule: %@",
+          instance);
+
+    return instance;
+}
+
+
+#pragma mark - Settings Icon
+
+- (UIImage *)settingsIconForModuleIdentifier:
+    (NSString *)identifier
+{
+    if (![identifier isEqualToString:
+            @"com.trantu.sleepmode"]) {
+
         return nil;
     }
 
 
-    return module;
+    NSBundle *bundle =
+        [NSBundle bundleForClass:[self class]];
+
+
+    NSString *path =
+        [bundle pathForResource:
+            @"SleepModeProviderIcon"
+        ofType:@"png"];
+
+
+    if (!path) {
+
+        path =
+            @"/Library/ControlCenter/"
+             "CCSupport_Providers/"
+             "SleepModeProvider.bundle/"
+             "SleepModeProviderIcon.png";
+    }
+
+
+    UIImage *image =
+        [UIImage imageWithContentsOfFile:path];
+
+
+    return image;
+}
+
+
+#pragma mark - Device
+
+- (NSUInteger)supportedDeviceFamiliesForModuleWithIdentifier:
+    (NSString *)identifier
+{
+    if ([identifier isEqualToString:
+            @"com.trantu.sleepmode"]) {
+
+        return 1;
+    }
+
+    return 0;
+}
+
+
+- (id)requiredDeviceCapabilitiesForModuleWithIdentifier:
+    (NSString *)identifier
+{
+    return nil;
+}
+
+
+- (id)requiredDeviceIncapabilitiesForModuleWithIdentifier:
+    (NSString *)identifier
+{
+    return nil;
+}
+
+
+#pragma mark - Visibility
+
+- (NSUInteger)visibilityPreferenceForModuleWithIdentifier:
+    (NSString *)identifier
+{
+    if ([identifier isEqualToString:
+            @"com.trantu.sleepmode"]) {
+
+        return 0;
+    }
+
+    return 0;
 }
 
 @end

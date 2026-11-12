@@ -60,10 +60,6 @@ SleepModeModule_FRAMEWORKS = \
 SleepModeModule_INSTALL_PATH = \
     /Library/ControlCenter/Bundles
 
-# ĐƯỜNG DẪN ĐÚNG
-# Makefile nằm trong SleepMode/
-# ControlCenter nằm ngang hàng với SleepMode/
-
 SleepModeModule_BUNDLE_RESOURCE_DIRS = \
     ../ControlCenter/SleepModeModule.bundle
 
@@ -90,22 +86,15 @@ SleepModeProvider_FRAMEWORKS = \
 SleepModeProvider_INSTALL_PATH = \
     /Library/ControlCenter/CCSupport_Providers
 
-# ĐƯỜNG DẪN ĐÚNG
-
 SleepModeProvider_BUNDLE_RESOURCE_DIRS = \
     ../ControlCenter/SleepModeProvider.bundle
 
 
 ##################################################
-# BUILD TWEAK
+# BUILD
 ##################################################
 
 include $(THEOS_MAKE_PATH)/tweak.mk
-
-
-##################################################
-# BUILD BUNDLES
-##################################################
 
 include $(THEOS_MAKE_PATH)/bundle.mk
 

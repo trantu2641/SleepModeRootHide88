@@ -27,10 +27,10 @@
     <string>BNDL</string>
 
     <key>CFBundleShortVersionString</key>
-    <string>1.6.1</string>
+    <string>1.6.0</string>
 
     <key>CFBundleVersion</key>
-    <string>1.6.1</string>
+    <string>1.6.0</string>
 
     <key>CFBundleSupportedPlatforms</key>
     <array>
@@ -53,6 +53,7 @@
         <dict>
             <key>Width</key>
             <integer>2</integer>
+
             <key>Height</key>
             <integer>2</integer>
         </dict>
@@ -61,6 +62,7 @@
         <dict>
             <key>Width</key>
             <integer>2</integer>
+
             <key>Height</key>
             <integer>2</integer>
         </dict>

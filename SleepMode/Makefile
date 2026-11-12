@@ -3,11 +3,9 @@ TARGET := iphone:clang:16.5:16.0
 include $(THEOS)/makefiles/common.mk
 
 
-#
-# ==============================
+# ==========================================
 # SleepMode TWEAK
-# ==============================
-#
+# ==========================================
 
 TWEAK_NAME = SleepMode
 
@@ -30,11 +28,9 @@ SleepMode_PRIVATE_FRAMEWORKS = \
     FrontBoardServices
 
 
-#
-# ==============================
+# ==========================================
 # Control Center MODULE
-# ==============================
-#
+# ==========================================
 
 BUNDLE_NAME = SleepModeModule
 
@@ -50,19 +46,13 @@ SleepModeModule_FRAMEWORKS = \
     UIKit \
     Foundation
 
-SleepModeModule_PRIVATE_FRAMEWORKS = \
-    ControlCenterUIKit \
-    ControlCenterServices
-
 SleepModeModule_INSTALL_PATH = \
     /Library/ControlCenter/Bundles
 
 
-#
-# ==============================
+# ==========================================
 # BUILD
-# ==============================
-#
+# ==========================================
 
 include $(THEOS_MAKE_PATH)/tweak.mk
 

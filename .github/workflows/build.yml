@@ -1,0 +1,451 @@
+
+name: Build SleepMode RootHide
+
+on:
+  workflow_dispatch:
+
+jobs:
+
+  build:
+    runs-on: macos-26
+
+    steps:
+
+      # =====================================================
+      # 1. CHECKOUT
+      # =====================================================
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+
+      # =====================================================
+      # 2. CHỌN XCODE
+      # =====================================================
+
+      - name: Select Xcode 26.6
+        run: |
+          sudo xcode-select \
+            -s /Applications/Xcode_26.6.app/Contents/Developer
+
+          echo "================================"
+          echo "XCODE VERSION"
+          echo "================================"
+
+          xcodebuild -version
+
+          echo ""
+          echo "================================"
+          echo "XCODE PATH"
+          echo "================================"
+
+          xcode-select -p
+
+
+      # =====================================================
+      # 3. CÀI DEPENDENCIES
+      # =====================================================
+
+      - name: Install dependencies
+        run: |
+          brew update
+
+          brew install \
+            ldid \
+            xz \
+            perl
+
+          echo "================================"
+          echo "DEPENDENCIES"
+          echo "================================"
+
+          echo "ldid:"
+          which ldid
+
+          echo ""
+          echo "perl:"
+          which perl
+
+          echo ""
+          echo "xz:"
+          which xz
+
+
+      # =====================================================
+      # 4. CÀI ROOT HIDE THEOS
+      # =====================================================
+
+      - name: Install RootHide Theos
+        run: |
+          rm -rf "$HOME/theos"
+
+          git clone --depth=1 \
+            https://github.com/roothide/theos.git \
+            "$HOME/theos"
+
+          echo "THEOS=$HOME/theos" >> "$GITHUB_ENV"
+
+          echo "================================"
+          echo "THEOS INSTALLED"
+          echo "================================"
+
+          echo "THEOS=$HOME/theos"
+
+          ls -la "$HOME/theos"
+
+
+      # =====================================================
+      # 5. BOOTSTRAP THEOS
+      # =====================================================
+
+      - name: Bootstrap Theos
+        run: |
+          export THEOS="$HOME/theos"
+
+          echo "================================"
+          echo "BOOTSTRAP THEOS"
+          echo "================================"
+
+          chmod +x \
+            "$THEOS/bin/update-theos"
+
+          "$THEOS/bin/update-theos"
+
+          echo ""
+          echo "================================"
+          echo "VENDOR CHECK"
+          echo "================================"
+
+          if [ ! -d "$THEOS/vendor/include" ]; then
+            echo "ERROR: vendor/include missing"
+            exit 1
+          fi
+
+          if [ ! -d "$THEOS/vendor/lib" ]; then
+            echo "ERROR: vendor/lib missing"
+            exit 1
+          fi
+
+          echo "vendor/include: OK"
+          echo "vendor/lib: OK"
+
+
+      # =====================================================
+      # 6. CÀI dm.pl
+      # =====================================================
+
+      - name: Install dm.pl
+        run: |
+          export THEOS="$HOME/theos"
+
+          rm -rf /tmp/dm.pl
+
+          git clone --depth=1 \
+            https://github.com/theos/dm.pl.git \
+            /tmp/dm.pl
+
+          mkdir -p "$THEOS/bin"
+
+          cp \
+            /tmp/dm.pl/dm.pl \
+            "$THEOS/bin/dm.pl"
+
+          chmod +x \
+            "$THEOS/bin/dm.pl"
+
+          echo "$THEOS/bin" >> "$GITHUB_PATH"
+
+          echo "================================"
+          echo "dm.pl INSTALLED"
+          echo "================================"
+
+          ls -lh \
+            "$THEOS/bin/dm.pl"
+
+
+      # =====================================================
+      # 7. CÀI IPHONEOS 16.5 SDK
+      # =====================================================
+
+      - name: Install iPhoneOS 16.5 SDK
+        run: |
+          export THEOS="$HOME/theos"
+
+          mkdir -p "$THEOS/sdks"
+
+          rm -rf /tmp/theos-sdks
+
+          git clone --depth=1 \
+            https://github.com/theos/sdks.git \
+            /tmp/theos-sdks
+
+          echo "================================"
+          echo "AVAILABLE IPHONEOS SDKS"
+          echo "================================"
+
+          find /tmp/theos-sdks \
+            -maxdepth 1 \
+            -type d \
+            -name "iPhoneOS*.sdk" \
+            -print
+
+
+          if [ ! -d \
+            "/tmp/theos-sdks/iPhoneOS16.5.sdk" ]; then
+
+            echo ""
+            echo "ERROR:"
+            echo "iPhoneOS16.5.sdk was not found."
+
+            exit 1
+          fi
+
+
+          cp -R \
+            "/tmp/theos-sdks/iPhoneOS16.5.sdk" \
+            "$THEOS/sdks/"
+
+
+          echo ""
+          echo "================================"
+          echo "SDK INSTALLED"
+          echo "================================"
+
+          ls -ld \
+            "$THEOS/sdks/iPhoneOS16.5.sdk"
+
+
+      # =====================================================
+      # 8. KIỂM TRA MÔI TRƯỜNG BUILD
+      # =====================================================
+
+      - name: Verify build environment
+        run: |
+          export THEOS="$HOME/theos"
+
+          echo "================================"
+          echo "THEOS"
+          echo "================================"
+
+          echo "$THEOS"
+
+
+          echo ""
+          echo "================================"
+          echo "THEOS VENDOR"
+          echo "================================"
+
+          if [ ! -d "$THEOS/vendor/include" ]; then
+            echo "ERROR: vendor/include not found"
+            exit 1
+          fi
+
+          if [ ! -d "$THEOS/vendor/lib" ]; then
+            echo "ERROR: vendor/lib not found"
+            exit 1
+          fi
+
+          echo "vendor/include: OK"
+          echo "vendor/lib: OK"
+
+
+          echo ""
+          echo "================================"
+          echo "dm.pl"
+          echo "================================"
+
+          if [ ! -f "$THEOS/bin/dm.pl" ]; then
+            echo "ERROR: dm.pl not found"
+            exit 1
+          fi
+
+          ls -lh "$THEOS/bin/dm.pl"
+
+
+          echo ""
+          echo "================================"
+          echo "LDID"
+          echo "================================"
+
+          if ! command -v ldid >/dev/null 2>&1; then
+            echo "ERROR: ldid not found"
+            exit 1
+          fi
+
+          which ldid
+
+
+          echo ""
+          echo "================================"
+          echo "SDK"
+          echo "================================"
+
+          if [ ! -d \
+            "$THEOS/sdks/iPhoneOS16.5.sdk" ]; then
+
+            echo "ERROR: SDK not found"
+            exit 1
+          fi
+
+          ls -ld \
+            "$THEOS/sdks/iPhoneOS16.5.sdk"
+
+
+          echo ""
+          echo "================================"
+          echo "THEOS COMMON.MK"
+          echo "================================"
+
+          if [ -f "$THEOS/makefiles/common.mk" ]; then
+            echo "common.mk: OK"
+          else
+            echo "ERROR: common.mk not found"
+            exit 1
+          fi
+
+
+      # =====================================================
+      # 9. KIỂM TRA PROJECT
+      # =====================================================
+
+      - name: Check SleepMode project
+        run: |
+          echo "================================"
+          echo "PROJECT FILES"
+          echo "================================"
+
+          find SleepMode \
+            -maxdepth 2 \
+            -type f \
+            -print
+
+
+          echo ""
+          echo "================================"
+          echo "REQUIRED FILES"
+          echo "================================"
+
+
+          REQUIRED_FILES="
+          SleepMode/Makefile
+          SleepMode/control
+          SleepMode/SleepMode.plist
+          SleepMode/Tweak.xm
+          SleepMode/SleepManager.h
+          SleepMode/SleepManager.m
+          "
+
+
+          for FILE in $REQUIRED_FILES
+          do
+
+            if [ ! -f "$FILE" ]; then
+              echo "ERROR: Missing file:"
+              echo "$FILE"
+              exit 1
+            fi
+
+            echo "OK: $FILE"
+
+          done
+
+
+      # =====================================================
+      # 10. BUILD
+      # =====================================================
+
+      - name: Build SleepMode
+        working-directory: SleepMode
+        run: |
+          export THEOS="$HOME/theos"
+
+          echo "================================"
+          echo "TARGET"
+          echo "================================"
+
+          grep "^TARGET" Makefile || true
+
+
+          echo ""
+          echo "================================"
+          echo "CLEAN"
+          echo "================================"
+
+          make clean
+
+
+          echo ""
+          echo "================================"
+          echo "BUILD PACKAGE"
+          echo "================================"
+
+          make package \
+            FINALPACKAGE=1 \
+            THEOS_PACKAGE_SCHEME=roothide
+
+
+      # =====================================================
+      # 11. KIỂM TRA DEB
+      # =====================================================
+
+      - name: Verify DEB
+        run: |
+          echo "================================"
+          echo "DEB FILES"
+          echo "================================"
+
+          find . \
+            -type f \
+            -name "*.deb" \
+            -print
+
+
+          DEB_COUNT=$(
+            find . \
+              -type f \
+              -name "*.deb" \
+              | wc -l
+          )
+
+
+          if [ "$DEB_COUNT" -eq 0 ]; then
+            echo ""
+            echo "ERROR: No .deb package generated."
+            exit 1
+          fi
+
+
+          echo ""
+          echo "================================"
+          echo "BUILD SUCCESS"
+          echo "================================"
+
+          echo "Generated packages: $DEB_COUNT"
+
+
+      # =====================================================
+      # 12. HIỂN THỊ PACKAGE
+      # =====================================================
+
+      - name: Show package information
+        run: |
+          echo "================================"
+          echo "PACKAGE INFORMATION"
+          echo "================================"
+
+          find . \
+            -type f \
+            -name "*.deb" \
+            -exec ls -lh {} \;
+
+
+      # =====================================================
+      # 13. UPLOAD DEB
+      # =====================================================
+
+      - name: Upload DEB
+        uses: actions/upload-artifact@v4
+        with:
+          name: SleepMode-RootHide
+          path: |
+            SleepMode/packages/*.deb

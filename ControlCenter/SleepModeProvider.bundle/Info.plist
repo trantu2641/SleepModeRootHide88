@@ -9,7 +9,7 @@
     <string>com.trantu.sleepmode.provider</string>
 
     <key>CFBundleName</key>
-    <string>Chế độ ngủ</string>
+    <string>SleepModeProvider</string>
 
     <key>CFBundleDisplayName</key>
     <string>Chế độ ngủ</string>
@@ -21,10 +21,10 @@
     <string>BNDL</string>
 
     <key>CFBundleVersion</key>
-    <string>1.5.0</string>
+    <string>1.6.0</string>
 
     <key>CFBundleShortVersionString</key>
-    <string>1.5.0</string>
+    <string>1.6.0</string>
 
     <key>NSPrincipalClass</key>
     <string>SleepModeProvider</string>

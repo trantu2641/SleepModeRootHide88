@@ -29,10 +29,15 @@ SleepMode_PRIVATE_FRAMEWORKS = \
 
 
 # ==========================================================
-# CONTROL CENTER MODULE
+# CONTROL CENTER MODULE + PROVIDER
 # ==========================================================
 
-BUNDLE_NAME = SleepModeModule
+BUNDLE_NAME = SleepModeModule SleepModeProvider
+
+
+# ----------------------------------------------------------
+# SleepModeModule
+# ----------------------------------------------------------
 
 SleepModeModule_BUNDLE_EXTENSION = bundle
 
@@ -53,16 +58,14 @@ SleepModeModule_BUNDLE_RESOURCE_DIRS = \
     ../ControlCenter/SleepModeModule.bundle
 
 
-# ==========================================================
-# CONTROL CENTER PROVIDER
-# ==========================================================
-
-BUNDLE_NAME += SleepModeProvider
+# ----------------------------------------------------------
+# SleepModeProvider
+# ----------------------------------------------------------
 
 SleepModeProvider_BUNDLE_EXTENSION = bundle
 
 SleepModeProvider_FILES = \
-    ../SleepModeProvider/SleepModeProvider.m
+    SleepModeProvider.m
 
 SleepModeProvider_CFLAGS = \
     -fobjc-arc
@@ -72,10 +75,10 @@ SleepModeProvider_FRAMEWORKS = \
     Foundation
 
 SleepModeProvider_INSTALL_PATH = \
-    /Library/ControlCenter/Providers
+    /Library/ControlCenter/CCSupport_Providers
 
 SleepModeProvider_BUNDLE_RESOURCE_DIRS = \
-    ../SleepModeProvider
+    ../ControlCenter/SleepModeProvider.bundle
 
 
 # ==========================================================

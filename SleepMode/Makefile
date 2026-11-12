@@ -2,7 +2,6 @@ TARGET := iphone:clang:16.5:16.0
 
 include $(THEOS)/makefiles/common.mk
 
-
 ############################
 # MAIN TWEAK
 ############################
@@ -26,7 +25,6 @@ SleepMode_PRIVATE_FRAMEWORKS = \
     SpringBoardUI \
     BackBoardServices \
     FrontBoardServices
-
 
 ############################
 # CONTROL CENTER MODULE
@@ -52,7 +50,6 @@ SleepModeModule_INSTALL_PATH = \
 SleepModeModule_BUNDLE_RESOURCE_DIRS = \
     ControlCenter/SleepModeModule.bundle
 
-
 ############################
 # CONTROL CENTER PROVIDER
 ############################
@@ -77,14 +74,12 @@ SleepModeProvider_INSTALL_PATH = \
 SleepModeProvider_BUNDLE_RESOURCE_DIRS = \
     ControlCenter/SleepModeProvider.bundle
 
-
 ############################
 # BUILD
 ############################
 
 include $(THEOS_MAKE_PATH)/tweak.mk
 include $(THEOS_MAKE_PATH)/bundle.mk
-
 
 ############################
 # PACKAGE

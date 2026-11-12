@@ -1,182 +1,119 @@
 #import <Foundation/Foundation.h>
 #import <UIKit/UIKit.h>
-#import <objc/runtime.h>
 #import <objc/message.h>
-#import <dlfcn.h>
 
-static NSString * const SleepModeEnabledKey =
-    @"SleepModeEnabled";
+#pragma mark - Private Control Center API
 
-static NSString * const SleepModeCommandNotification =
-    @"com.trantu.sleepmode.command";
-
-static NSString * const SleepModeStateChangedNotification =
-    @"com.trantu.sleepmode.stateChanged";
+@interface CCUIToggleModule : NSObject
+- (BOOL)isSelected;
+- (void)setSelected:(BOOL)selected;
+@end
 
 
-#pragma mark - Load ControlCenterUI
+#pragma mark - SleepModeModule
 
-static Class SleepModeGetCCUIToggleModule(void)
+@interface SleepModeModule : CCUIToggleModule
+@end
+
+
+@implementation SleepModeModule
+
+#pragma mark - Init
+
+- (instancetype)init
 {
-    Class cls = NSClassFromString(@"CCUIToggleModule");
+    self = [super init];
 
-    if (cls != Nil) {
-        return cls;
+    if (self) {
+        /*
+         * Không làm bất kỳ việc gì nặng trong init.
+         * Control Center gọi init khi dựng danh sách module.
+         */
     }
 
-    void *handle = dlopen(
-        "/System/Library/PrivateFrameworks/ControlCenterUI.framework/ControlCenterUI",
-        RTLD_LAZY | RTLD_LOCAL
-    );
-
-    if (handle != NULL) {
-        cls = NSClassFromString(@"CCUIToggleModule");
-    }
-
-    return cls;
+    return self;
 }
 
 
-#pragma mark - Runtime Methods
+#pragma mark - Selected state
 
-static BOOL SleepModeIsSelected(id self, SEL _cmd)
+- (BOOL)isSelected
 {
     return [[NSUserDefaults standardUserDefaults]
-            boolForKey:SleepModeEnabledKey];
+            boolForKey:@"SleepModeEnabled"];
 }
 
 
-static void SleepModeSetSelected(id self, SEL _cmd, BOOL selected)
+- (void)setSelected:(BOOL)selected
 {
     NSUserDefaults *defaults =
         [NSUserDefaults standardUserDefaults];
 
     [defaults setBool:selected
-              forKey:SleepModeEnabledKey];
+              forKey:@"SleepModeEnabled"];
 
     [defaults synchronize];
 
     NSDictionary *info = @{
-        @"enabled": @(selected)
+        @"enabled" : @(selected)
     };
 
+    /*
+     * Gửi lệnh sang SleepMode tweak đang chạy trong SpringBoard.
+     */
     [[NSNotificationCenter defaultCenter]
-        postNotificationName:SleepModeCommandNotification
+        postNotificationName:@"com.trantu.sleepmode.command"
         object:nil
         userInfo:info];
 
+    /*
+     * Báo cho các thành phần SleepMode cập nhật trạng thái.
+     */
     [[NSNotificationCenter defaultCenter]
-        postNotificationName:SleepModeStateChangedNotification
+        postNotificationName:@"com.trantu.sleepmode.stateChanged"
         object:nil];
 }
 
 
-static void SleepModeToggle(id self, SEL _cmd)
-{
-    BOOL selected = SleepModeIsSelected(
-        self,
-        sel_registerName("isSelected")
-    );
+#pragma mark - Toggle
 
-    SleepModeSetSelected(
-        self,
-        sel_registerName("setSelected:"),
-        !selected
-    );
+- (void)toggle
+{
+    BOOL current = [self isSelected];
+
+    [self setSelected:!current];
 }
 
 
-#pragma mark - Create Module
+#pragma mark - Press
 
-static void SleepModeRegisterModule(void)
+- (void)handlePress
 {
-    /*
-     * Không tạo lại nếu đã tồn tại.
-     */
-    if (NSClassFromString(@"SleepModeModule") != Nil) {
-        return;
-    }
-
-    Class baseClass = SleepModeGetCCUIToggleModule();
-
-    if (baseClass == Nil) {
-        NSLog(@"[SleepMode] ERROR: CCUIToggleModule unavailable");
-        return;
-    }
-
-    /*
-     * Tạo class:
-     *
-     * SleepModeModule : CCUIToggleModule
-     *
-     * bằng runtime để tránh linker dependency.
-     */
-    Class moduleClass =
-        objc_allocateClassPair(
-            baseClass,
-            "SleepModeModule",
-            0
-        );
-
-    if (moduleClass == Nil) {
-        NSLog(@"[SleepMode] ERROR: objc_allocateClassPair failed");
-        return;
-    }
-
-    class_addMethod(
-        moduleClass,
-        sel_registerName("isSelected"),
-        (IMP)SleepModeIsSelected,
-        "c@:"
-    );
-
-    class_addMethod(
-        moduleClass,
-        sel_registerName("setSelected:"),
-        (IMP)SleepModeSetSelected,
-        "v@:c"
-    );
-
-    /*
-     * Một số phiên bản ControlCenter gọi:
-     * handlePress
-     */
-    class_addMethod(
-        moduleClass,
-        sel_registerName("handlePress"),
-        (IMP)SleepModeToggle,
-        "v@:"
-    );
-
-    /*
-     * Một số phiên bản gọi:
-     * toggle
-     */
-    class_addMethod(
-        moduleClass,
-        sel_registerName("toggle"),
-        (IMP)SleepModeToggle,
-        "v@:"
-    );
-
-    objc_registerClassPair(moduleClass);
-
-    NSLog(@"[SleepMode] SleepModeModule registered");
+    [self toggle];
 }
 
 
-#pragma mark - Bootstrap
+#pragma mark - Display name
 
-@interface SleepModeBootstrap : NSObject
-@end
-
-@implementation SleepModeBootstrap
-
-+ (void)load
+- (NSString *)displayName
 {
-    @autoreleasepool {
-        SleepModeRegisterModule();
-    }
+    return @"Chế độ ngủ";
+}
+
+
+#pragma mark - Identifier
+
+- (NSString *)identifier
+{
+    return @"com.trantu.sleepmode.module";
+}
+
+
+#pragma mark - Accessibility
+
+- (NSString *)accessibilityLabel
+{
+    return @"Chế độ ngủ";
 }
 
 @end

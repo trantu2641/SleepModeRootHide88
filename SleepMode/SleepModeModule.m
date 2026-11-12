@@ -1,7 +1,7 @@
 #import <Foundation/Foundation.h>
 #import <UIKit/UIKit.h>
 
-#pragma mark - Private Control Center Protocols
+#pragma mark - Control Center Protocols
 
 @protocol CCUIContentModuleContext <NSObject>
 @optional
@@ -23,8 +23,13 @@
 @end
 
 
-static NSString * const SMEnabledKey = @"SleepModeEnabled";
-static NSString * const SMTimeoutKey = @"SleepModeTimeout";
+#pragma mark - Constants
+
+static NSString * const SMEnabledKey =
+    @"SleepModeEnabled";
+
+static NSString * const SMTimeoutKey =
+    @"SleepModeTimeout";
 
 static NSString * const SMCommandNotification =
     @"com.trantu.sleepmode.command";
@@ -33,7 +38,7 @@ static NSString * const SMStateChangedNotification =
     @"com.trantu.sleepmode.stateChanged";
 
 
-#pragma mark - Shared State
+#pragma mark - State
 
 static BOOL SMIsEnabled(void)
 {
@@ -95,7 +100,8 @@ static void SMSetTimeout(NSTimeInterval timeout)
 
     [defaults synchronize];
 
-    NSLog(@"[SleepMode] timeout = %.0f", timeout);
+    NSLog(@"[SleepMode] timeout = %.0f seconds",
+          timeout);
 
     [[NSNotificationCenter defaultCenter]
         postNotificationName:SMCommandNotification
@@ -112,6 +118,8 @@ static void SMSetTimeout(NSTimeInterval timeout)
 
 static void SMResetTimer(void)
 {
+    NSLog(@"[SleepMode] reset timer");
+
     [[NSNotificationCenter defaultCenter]
         postNotificationName:SMCommandNotification
         object:nil
@@ -127,8 +135,14 @@ static void SMResetTimer(void)
     UIViewController
     <CCUIContentModuleContentViewController>
 
-@property(nonatomic, strong) UIButton *toggleButton;
-@property(nonatomic, strong) UILabel *statusLabel;
+@property(nonatomic, strong)
+    UILabel *statusLabel;
+
+@property(nonatomic, strong)
+    UIButton *toggleButton;
+
+@property(nonatomic, strong)
+    UIButton *timeoutButton;
 
 @end
 
@@ -141,7 +155,7 @@ static void SMResetTimer(void)
 
     if (self) {
         self.preferredContentSize =
-            CGSizeMake(320.0, 180.0);
+            CGSizeMake(320.0, 220.0);
     }
 
     return self;
@@ -158,24 +172,18 @@ static void SMResetTimer(void)
     CGFloat width =
         self.view.bounds.size.width;
 
-    CGFloat height =
-        self.view.bounds.size.height;
-
     if (width <= 0.0) {
         width = 320.0;
     }
 
-    if (height <= 0.0) {
-        height = 180.0;
-    }
-
 
     self.statusLabel =
-        [[UILabel alloc] initWithFrame:
-            CGRectMake(20.0,
-                       20.0,
-                       width - 40.0,
-                       35.0)];
+        [[UILabel alloc]
+            initWithFrame:
+                CGRectMake(20.0,
+                           18.0,
+                           width - 40.0,
+                           32.0)];
 
     self.statusLabel.textAlignment =
         NSTextAlignmentCenter;
@@ -192,19 +200,15 @@ static void SMResetTimer(void)
 
     self.toggleButton.frame =
         CGRectMake(20.0,
-                   70.0,
+                   60.0,
                    width - 40.0,
-                   50.0);
+                   48.0);
 
     self.toggleButton.layer.cornerRadius =
         12.0;
 
     self.toggleButton.backgroundColor =
         [UIColor secondarySystemBackgroundColor];
-
-    [self.toggleButton setTitle:
-        @"Bật / Tắt"
-        forState:UIControlStateNormal];
 
     [self.toggleButton addTarget:self
                           action:@selector(togglePressed:)
@@ -213,13 +217,43 @@ static void SMResetTimer(void)
     [self.view addSubview:self.toggleButton];
 
 
+    self.timeoutButton =
+        [UIButton buttonWithType:UIButtonTypeSystem];
+
+    self.timeoutButton.frame =
+        CGRectMake(20.0,
+                   118.0,
+                   width - 40.0,
+                   48.0);
+
+    self.timeoutButton.layer.cornerRadius =
+        12.0;
+
+    self.timeoutButton.backgroundColor =
+        [UIColor secondarySystemBackgroundColor];
+
+    [self.timeoutButton addTarget:self
+                           action:@selector(timeoutPressed:)
+                 forControlEvents:UIControlEventTouchUpInside];
+
+    [self.view addSubview:self.timeoutButton];
+
+
     [self updateUI];
+
 
     [[NSNotificationCenter defaultCenter]
         addObserver:self
            selector:@selector(stateChanged:)
                name:SMStateChangedNotification
              object:nil];
+}
+
+
+- (void)dealloc
+{
+    [[NSNotificationCenter defaultCenter]
+        removeObserver:self];
 }
 
 
@@ -231,15 +265,10 @@ static void SMResetTimer(void)
 }
 
 
-- (void)dealloc
-{
-    [[NSNotificationCenter defaultCenter]
-        removeObserver:self];
-}
-
-
 - (void)stateChanged:(NSNotification *)notification
 {
+    (void)notification;
+
     dispatch_async(dispatch_get_main_queue(), ^{
         [self updateUI];
     });
@@ -248,7 +277,36 @@ static void SMResetTimer(void)
 
 - (void)updateUI
 {
-    BOOL enabled = SMIsEnabled();
+    BOOL enabled =
+        SMIsEnabled();
+
+    NSTimeInterval timeout =
+        SMCurrentTimeout();
+
+    NSString *timeoutText;
+
+    if (timeout < 60.0) {
+
+        timeoutText =
+            [NSString stringWithFormat:
+                @"%d giây",
+                (int)timeout];
+
+    } else if (timeout < 3600.0) {
+
+        timeoutText =
+            [NSString stringWithFormat:
+                @"%d phút",
+                (int)(timeout / 60.0)];
+
+    } else {
+
+        timeoutText =
+            [NSString stringWithFormat:
+                @"%d giờ",
+                (int)(timeout / 3600.0)];
+    }
+
 
     if (enabled) {
 
@@ -268,14 +326,135 @@ static void SMResetTimer(void)
             setTitle:@"Bật chế độ ngủ"
             forState:UIControlStateNormal];
     }
+
+
+    [self.timeoutButton
+        setTitle:
+            [NSString stringWithFormat:
+                @"Tự khóa sau: %@",
+                timeoutText]
+        forState:UIControlStateNormal];
 }
 
+
+#pragma mark - Actions
 
 - (void)togglePressed:(id)sender
 {
     (void)sender;
 
     SMSetEnabled(!SMIsEnabled());
+}
+
+
+- (void)timeoutPressed:(id)sender
+{
+    (void)sender;
+
+    UIAlertController *alert =
+        [UIAlertController
+            alertControllerWithTitle:@"Thời gian tự khóa"
+            message:@"Chọn thời gian chờ"
+            preferredStyle:UIAlertControllerStyleActionSheet];
+
+
+    NSArray *items = @[
+        @{@"title": @"15 giây", @"value": @15.0},
+        @{@"title": @"1 phút",  @"value": @60.0},
+        @{@"title": @"5 phút",  @"value": @300.0},
+        @{@"title": @"15 phút", @"value": @900.0},
+        @{@"title": @"30 phút", @"value": @1800.0},
+        @{@"title": @"1 giờ",   @"value": @3600.0},
+        @{@"title": @"2 giờ",   @"value": @7200.0}
+    ];
+
+
+    NSTimeInterval current =
+        SMCurrentTimeout();
+
+
+    for (NSDictionary *item in items) {
+
+        NSString *title =
+            item[@"title"];
+
+        NSNumber *value =
+            item[@"value"];
+
+        BOOL selected =
+            fabs(current - value.doubleValue) < 0.5;
+
+        NSString *displayTitle =
+            selected
+                ? [NSString stringWithFormat:
+                    @"✓ %@",
+                    title]
+                : title;
+
+
+        UIAlertAction *action =
+            [UIAlertAction
+                actionWithTitle:displayTitle
+                style:UIAlertActionStyleDefault
+                handler:^(UIAlertAction *action) {
+
+            (void)action;
+
+            SMSetTimeout(
+                value.doubleValue
+            );
+
+            if (SMIsEnabled()) {
+                SMResetTimer();
+            }
+        }];
+
+
+        [alert addAction:action];
+    }
+
+
+    [alert addAction:
+        [UIAlertAction
+            actionWithTitle:@"Hủy"
+            style:UIAlertActionStyleCancel
+            handler:nil]];
+
+
+    UIViewController *presenting =
+        self.presentingViewController;
+
+    if (!presenting) {
+        presenting = self;
+    }
+
+
+    UIPopoverPresentationController *popover =
+        alert.popoverPresentationController;
+
+    if (popover) {
+
+        popover.sourceView =
+            self.view;
+
+        popover.sourceRect =
+            CGRectMake(
+                CGRectGetMidX(
+                    self.view.bounds
+                ),
+                CGRectGetMidY(
+                    self.view.bounds
+                ),
+                1.0,
+                1.0
+            );
+    }
+
+
+    [presenting
+        presentViewController:alert
+        animated:YES
+        completion:nil];
 }
 
 
@@ -327,8 +506,6 @@ static void SMResetTimer(void)
 }
 
 
-#pragma mark - CCUIContentModule
-
 - (UIViewController<CCUIContentModuleContentViewController> *)
     contentViewController
 {
@@ -339,7 +516,8 @@ static void SMResetTimer(void)
 - (void)setContentModuleContext:
     (id<CCUIContentModuleContext>)context
 {
-    _contentModuleContext = context;
+    _contentModuleContext =
+        context;
 }
 
 
@@ -352,20 +530,6 @@ static void SMResetTimer(void)
 - (void)setContentModuleEnabled:(BOOL)enabled
 {
     SMSetEnabled(enabled);
-}
-
-
-#pragma mark - Control Center expansion behavior
-
-- (BOOL)shouldExpandModuleOnTouch
-{
-    return NO;
-}
-
-
-- (BOOL)shouldExpandModuleOnTouchDown
-{
-    return NO;
 }
 
 @end

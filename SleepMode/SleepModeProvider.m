@@ -1,6 +1,5 @@
 #import <Foundation/Foundation.h>
 #import <UIKit/UIKit.h>
-#import <objc/runtime.h>
 
 @protocol CCSModuleProvider <NSObject>
 
@@ -19,110 +18,168 @@
 
 @optional
 
+- (NSSet *)supportedDeviceFamiliesForModuleWithIdentifier:
+    (NSString *)identifier;
+
+- (NSSet *)requiredDeviceCapabilitiesForModuleWithIdentifier:
+    (NSString *)identifier;
+
+- (NSSet *)requiredDeviceIncapabilitiesForModuleWithIdentifier:
+    (NSString *)identifier;
+
+- (NSString *)associatedBundleIdentifierForModuleWithIdentifier:
+    (NSString *)identifier;
+
+- (NSString *)associatedBundleMinimumVersionForModuleWithIdentifier:
+    (NSString *)identifier;
+
+- (NSUInteger)visibilityPreferenceForModuleWithIdentifier:
+    (NSString *)identifier;
+
 - (UIImage *)settingsIconForModuleIdentifier:
     (NSString *)identifier;
 
 @end
 
-static NSString * const kSleepModeModuleIdentifier =
+
+static NSString * const SleepModeIdentifier =
     @"com.trantu.sleepmode";
 
-static NSBundle *SleepModeModuleBundle(void)
-{
-    NSString *path =
-        @"/Library/ControlCenter/Bundles/"
-        @"SleepModeModule.bundle";
-
-    return [NSBundle bundleWithPath:path];
-}
-
-@interface SleepModeProvider :
-    NSObject <CCSModuleProvider>
-
-@end
 
 @implementation SleepModeProvider
+
+#pragma mark - Provider
 
 - (NSUInteger)numberOfProvidedModules
 {
     return 1;
 }
 
+
 - (NSString *)identifierForModuleAtIndex:
     (NSUInteger)index
 {
-    if (index != 0)
+    if (index != 0) {
         return nil;
+    }
 
-    return kSleepModeModuleIdentifier;
+    return SleepModeIdentifier;
 }
+
 
 - (NSString *)displayNameForModuleIdentifier:
     (NSString *)identifier
 {
     if (![identifier isEqualToString:
-            kSleepModeModuleIdentifier]) {
+            SleepModeIdentifier]) {
         return nil;
     }
 
     return @"Chế độ ngủ";
 }
 
+
+#pragma mark - Device
+
+- (NSSet *)supportedDeviceFamiliesForModuleWithIdentifier:
+    (NSString *)identifier
+{
+    if (![identifier isEqualToString:
+            SleepModeIdentifier]) {
+        return nil;
+    }
+
+    /*
+     * iPhone + iPad
+     */
+    return [NSSet setWithObjects:
+        @1,
+        @2,
+        nil];
+}
+
+
+#pragma mark - Icon
+
 - (UIImage *)settingsIconForModuleIdentifier:
     (NSString *)identifier
 {
     if (![identifier isEqualToString:
-            kSleepModeModuleIdentifier]) {
+            SleepModeIdentifier]) {
         return nil;
     }
 
-    NSBundle *bundle =
-        SleepModeModuleBundle();
+    NSBundle *providerBundle =
+        [NSBundle bundleForClass:[self class]];
 
     NSString *path =
-        [bundle pathForResource:@"icon"
-                         ofType:@"png"];
+        [providerBundle
+            pathForResource:@"SleepModeProviderIcon"
+                     ofType:@"png"];
 
-    if (!path)
+    if (!path) {
         return nil;
+    }
 
     return [UIImage imageWithContentsOfFile:path];
 }
+
+
+#pragma mark - Module
 
 - (id)moduleInstanceForModuleIdentifier:
     (NSString *)identifier
 {
     if (![identifier isEqualToString:
-            kSleepModeModuleIdentifier]) {
+            SleepModeIdentifier]) {
         return nil;
     }
 
-    NSBundle *bundle =
-        SleepModeModuleBundle();
+    NSString *modulePath =
+        @"/Library/ControlCenter/Bundles/"
+        @"SleepModeModule.bundle";
 
-    if (!bundle)
+    NSBundle *moduleBundle =
+        [NSBundle bundleWithPath:modulePath];
+
+    if (!moduleBundle) {
         return nil;
+    }
 
     NSError *error = nil;
 
-    if (![bundle loadAndReturnError:&error]) {
+    BOOL loaded =
+        [moduleBundle
+            loadAndReturnError:&error];
+
+    if (!loaded) {
+        NSLog(
+            @"[SleepMode] Không load được module: %@",
+            error
+        );
+
         return nil;
     }
 
     Class moduleClass =
         NSClassFromString(@"SleepModeModule");
 
-    if (!moduleClass)
+    if (!moduleClass) {
+        NSLog(
+            @"[SleepMode] Không tìm thấy SleepModeModule"
+        );
+
         return nil;
+    }
 
     id module =
         [[moduleClass alloc] init];
 
-    Protocol *protocol =
-        objc_getProtocol("CCUIContentModule");
+    if (!module) {
+        NSLog(
+            @"[SleepMode] Không tạo được module"
+        );
 
-    if (protocol &&
-        ![module conformsToProtocol:protocol]) {
         return nil;
     }
 

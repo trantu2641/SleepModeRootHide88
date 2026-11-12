@@ -7,22 +7,11 @@
 
 %group SpringBoardGroup
 
-/*
- * SpringBoard là nơi quản lý toàn bộ giao diện hệ thống.
- *
- * Vì SleepMode chỉ inject vào SpringBoard nên:
- *
- *   Home Screen       -> bắt được
- *   App đang chạy     -> SpringBoard vẫn nhận lifecycle/event liên quan
- *   Control Center    -> bắt được
- *   Lock Screen       -> không chạy timer
- *   App Library       -> bắt được
- *
- * Không cần inject SleepMode vào từng app.
- */
-
 %hook SpringBoard
 
+/*
+ * SpringBoard khởi động
+ */
 - (void)applicationDidFinishLaunching:(id)application
 {
     %orig;
@@ -36,66 +25,46 @@
 }
 
 /*
- * Đây là điểm bắt sự kiện ở tầng SpringBoard.
+ * Bắt touch event ở tầng SpringBoard.
+ *
+ * Không dùng allPresses vì SDK iOS 16.5
+ * không expose selector này trên UIEvent.
  */
 - (void)sendEvent:(UIEvent *)event
 {
-    if (event != nil) {
+    if (event != nil &&
+        event.type == UIEventTypeTouches) {
 
-        UIEventType type = event.type;
+        NSSet *touches =
+            [event allTouches];
 
-        /*
-         * Touch event
-         */
-        if (type == UIEventTypeTouches) {
+        if (touches != nil &&
+            touches.count > 0) {
 
-            NSSet *touches = [event allTouches];
+            BOOL realTouch = NO;
 
-            if (touches.count > 0) {
+            for (UITouch *touch in touches) {
 
-                BOOL hasRealTouch = NO;
-
-                for (UITouch *touch in touches) {
-
-                    if (touch == nil) {
-                        continue;
-                    }
-
-                    /*
-                     * Chỉ tính những touch thực sự
-                     * đang tương tác với màn hình.
-                     */
-                    UITouchPhase phase =
-                        touch.phase;
-
-                    if (phase == UITouchPhaseBegan ||
-                        phase == UITouchPhaseMoved ||
-                        phase == UITouchPhaseEnded ||
-                        phase == UITouchPhaseStationary) {
-
-                        hasRealTouch = YES;
-                        break;
-                    }
+                if (touch == nil) {
+                    continue;
                 }
 
-                if (hasRealTouch) {
+                UITouchPhase phase =
+                    touch.phase;
 
-                    [[SleepManager sharedInstance]
-                        userDidInteract];
+                if (phase == UITouchPhaseBegan ||
+                    phase == UITouchPhaseMoved ||
+                    phase == UITouchPhaseEnded ||
+                    phase == UITouchPhaseStationary) {
+
+                    realTouch = YES;
+                    break;
                 }
             }
-        }
 
-        /*
-         * Một số thao tác phần cứng / hệ thống
-         * có thể đi qua Press event.
-         */
-        else if (type == UIEventTypePresses) {
+            if (realTouch) {
 
-            NSSet *presses =
-                [event allPresses];
-
-            if (presses.count > 0) {
+                NSLog(@"[SleepMode] Touch detected");
 
                 [[SleepManager sharedInstance]
                     userDidInteract];
@@ -109,17 +78,21 @@
 %end
 
 
+#pragma mark - SpringBoard Idle Timer
+
 /*
- * Giữ lại hook này như một lớp dự phòng.
+ * Đây là tín hiệu bổ sung của hệ thống.
  *
- * SpringBoard có thể reset idle timer khi hệ thống
- * nhận biết hoạt động của người dùng.
+ * Khi SpringBoard reset idle timer do hoạt động
+ * của người dùng, SleepMode cũng reset timer.
  */
 %hook SBIdleTimerGlobalCoordinator
 
 - (void)resetIdleTimer
 {
     %orig;
+
+    NSLog(@"[SleepMode] System idle timer reset");
 
     [[SleepManager sharedInstance]
         userDidInteract];
@@ -138,17 +111,23 @@
         [[NSBundle mainBundle]
             bundleIdentifier];
 
+    /*
+     * Chỉ chạy trong SpringBoard.
+     *
+     * Không inject vào app người dùng.
+     */
     if ([bundleID
             isEqualToString:
                 @"com.apple.springboard"]) {
 
-        NSLog(@"[SleepMode] Injected into SpringBoard");
+        NSLog(
+            @"[SleepMode] Injected into SpringBoard"
+        );
 
         %init(SpringBoardGroup);
 
         /*
-         * Tạo manager ngay sau khi SpringBoard
-         * được inject.
+         * Tạo SleepManager.
          */
         [SleepManager sharedInstance];
 

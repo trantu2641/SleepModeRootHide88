@@ -30,10 +30,11 @@
     /*
      * Bắt touch ở cấp SpringBoard.
      *
-     * Vì tweak chỉ inject vào SpringBoard nên:
+     * Tweak chỉ inject vào SpringBoard nên:
+     *
      * - Home Screen vẫn nhận được
      * - Control Center vẫn nhận được
-     * - Lock Screen không chạy timer vì SleepManager đã chặn
+     * - Lock Screen không chạy timer
      * - Không cần inject vào từng app
      */
 
@@ -80,6 +81,7 @@
     %orig;
 }
 
+
 %end
 
 
@@ -115,8 +117,7 @@
     %orig;
 
     /*
-     * Đảm bảo timer bị dừng ngay khi
-     * thiết bị chuyển sang trạng thái khóa.
+     * Dừng timer ngay khi thiết bị bị khóa.
      */
     [[SleepManager sharedInstance]
         deviceDidLock];
@@ -124,13 +125,10 @@
 
 
 /*
- * Được gọi khi UI unlock hoàn tất.
- *
- * Đây là hook đã test và hoạt động tốt
- * với trạng thái hiện tại của tweak.
+ * Được gọi sau khi unlock UI.
  */
 - (void)unlockUIFromSource:(int)source
-               withOptions:(id)options
+              withOptions:(id)options
 {
     NSLog(@"[SleepMode] unlockUIFromSource:withOptions:");
 
@@ -140,8 +138,8 @@
      * Sau khi unlock:
      *
      * - timer bắt đầu lại
-     * - thời gian được tính từ 0
-     * - không lấy thời gian trước khi khóa
+     * - thời gian tính lại từ 0
+     * - không dùng thời gian trước khi khóa
      */
     [[SleepManager sharedInstance]
         deviceDidUnlock];
@@ -160,13 +158,6 @@
 
     /*
      * Chỉ chạy trong SpringBoard.
-     *
-     * Không inject vào:
-     * - Safari
-     * - Facebook
-     * - Game
-     * - Settings
-     * - app người dùng
      */
     if ([bundleID
             isEqualToString:
@@ -174,14 +165,8 @@
 
         NSLog(@"[SleepMode] Injected into SpringBoard");
 
-        /*
-         * Khởi tạo toàn bộ Logos group.
-         */
         %init(SleepModeGroup);
 
-        /*
-         * Khởi tạo manager và Control Center.
-         */
         [SleepManager sharedInstance];
 
         [SleepControlCenter sharedInstance];
@@ -192,15 +177,4 @@
     }
 }
 
-
-/*
- * Đóng %group SleepModeGroup
- *
- * QUAN TRỌNG:
- * Nếu thiếu %end này Logos sẽ báo:
- *
- * missing %end
- * (%group opened at Tweak.xm:...)
- *
- */
 %end

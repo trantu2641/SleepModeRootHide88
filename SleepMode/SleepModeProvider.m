@@ -1,88 +1,93 @@
-#import <UIKit/UIKit.h>
 #import <Foundation/Foundation.h>
+#import <UIKit/UIKit.h>
 
 #pragma mark - CCSupport Protocols
 
 @protocol CCSModuleProvider <NSObject>
-
-@required
+@optional
 
 - (NSString *)displayNameForModuleIdentifier:(NSString *)identifier;
 
-- (NSString *)associatedBundleIdentifierForModuleWithIdentifier:(NSString *)identifier;
-
 - (NSString *)associatedBundleMinimumVersionForModuleWithIdentifier:(NSString *)identifier;
 
-- (NSUInteger)numberOfProvidedModules;
+- (NSString *)associatedBundleIdentifierForModuleWithIdentifier:(NSString *)identifier;
 
 - (NSString *)identifierForModuleAtIndex:(NSUInteger)index;
 
 - (id)moduleInstanceForModuleIdentifier:(NSString *)identifier;
 
-- (id)settingsIconForModuleIdentifier:(NSString *)identifier;
-
-- (NSArray *)supportedDeviceFamiliesForModuleWithIdentifier:(NSString *)identifier;
+- (NSUInteger)numberOfProvidedModules;
 
 - (NSArray *)requiredDeviceCapabilitiesForModuleWithIdentifier:(NSString *)identifier;
 
 - (NSArray *)requiredDeviceIncapabilitiesForModuleWithIdentifier:(NSString *)identifier;
 
+- (id)settingsIconForModuleIdentifier:(NSString *)identifier;
+
+- (NSArray *)supportedDeviceFamiliesForModuleWithIdentifier:(NSString *)identifier;
+
 - (NSInteger)visibilityPreferenceForModuleWithIdentifier:(NSString *)identifier;
 
 @end
 
-#pragma mark - Provider
+#pragma mark - SleepModeProvider
 
 @interface SleepModeProvider : NSObject <CCSModuleProvider>
 @end
 
 @implementation SleepModeProvider
 
-#pragma mark - Constants
-
-static NSString * const kModuleIdentifier =
+static NSString * const kSleepModeIdentifier =
     @"com.trantu.sleepmode.module";
 
-static NSString * const kModuleClassName =
+static NSString * const kSleepModeBundleIdentifier =
+    @"com.trantu.sleepmode.module";
+
+static NSString * const kSleepModeBundlePath =
+    @"/Library/ControlCenter/Bundles/SleepModeModule.bundle";
+
+static NSString * const kSleepModeClassName =
     @"SleepModeModule";
-
-static NSString * const kModuleBundleIdentifier =
-    @"com.trantu.sleepmode.module";
-
-static NSString * const kModuleMinimumVersion =
-    @"1.6.0";
-
-static NSString * const kDisplayName =
-    @"Chế độ ngủ";
 
 #pragma mark - Display Name
 
 - (NSString *)displayNameForModuleIdentifier:(NSString *)identifier
 {
-    if ([identifier isEqualToString:kModuleIdentifier]) {
-        return kDisplayName;
+    if ([identifier isEqualToString:kSleepModeIdentifier]) {
+        return @"Chế độ ngủ";
     }
 
     return nil;
 }
 
-#pragma mark - Bundle Identifier
-
-- (NSString *)associatedBundleIdentifierForModuleWithIdentifier:(NSString *)identifier
-{
-    if ([identifier isEqualToString:kModuleIdentifier]) {
-        return kModuleBundleIdentifier;
-    }
-
-    return nil;
-}
-
-#pragma mark - Minimum Version
+#pragma mark - Associated Bundle Version
 
 - (NSString *)associatedBundleMinimumVersionForModuleWithIdentifier:(NSString *)identifier
 {
-    if ([identifier isEqualToString:kModuleIdentifier]) {
-        return kModuleMinimumVersion;
+    if ([identifier isEqualToString:kSleepModeIdentifier]) {
+        return @"1.6.0";
+    }
+
+    return nil;
+}
+
+#pragma mark - Associated Bundle Identifier
+
+- (NSString *)associatedBundleIdentifierForModuleWithIdentifier:(NSString *)identifier
+{
+    if ([identifier isEqualToString:kSleepModeIdentifier]) {
+        return kSleepModeBundleIdentifier;
+    }
+
+    return nil;
+}
+
+#pragma mark - Identifier
+
+- (NSString *)identifierForModuleAtIndex:(NSUInteger)index
+{
+    if (index == 0) {
+        return kSleepModeIdentifier;
     }
 
     return nil;
@@ -95,68 +100,90 @@ static NSString * const kDisplayName =
     return 1;
 }
 
-#pragma mark - Module Identifier
-
-- (NSString *)identifierForModuleAtIndex:(NSUInteger)index
-{
-    if (index == 0) {
-        return kModuleIdentifier;
-    }
-
-    return nil;
-}
-
 #pragma mark - Module Instance
 
 - (id)moduleInstanceForModuleIdentifier:(NSString *)identifier
 {
-    if (![identifier isEqualToString:kModuleIdentifier]) {
+    if (![identifier isEqualToString:kSleepModeIdentifier]) {
         return nil;
     }
 
-    /*
-     CCSupport sẽ chịu trách nhiệm load associated bundle.
-     
-     Không:
-     - bundleWithPath:
-     - [bundle load]
-     - dlopen()
-     
-     ở đây để tránh load bundle thủ công trong SpringBoard.
-    */
+    NSBundle *bundle =
+        [NSBundle bundleWithPath:kSleepModeBundlePath];
 
-    Class moduleClass = NSClassFromString(kModuleClassName);
+    if (bundle == nil) {
+        return nil;
+    }
+
+    Class moduleClass =
+        NSClassFromString(kSleepModeClassName);
+
+    if (moduleClass == Nil) {
+
+        BOOL loaded = [bundle load];
+
+        if (!loaded) {
+            return nil;
+        }
+
+        moduleClass =
+            NSClassFromString(kSleepModeClassName);
+    }
 
     if (moduleClass == Nil) {
         return nil;
     }
 
-    id module = [[moduleClass alloc] init];
+    id module =
+        [[moduleClass alloc] init];
 
     return module;
+}
+
+#pragma mark - Required Device Capabilities
+
+- (NSArray *)requiredDeviceCapabilitiesForModuleWithIdentifier:(NSString *)identifier
+{
+    if (![identifier isEqualToString:kSleepModeIdentifier]) {
+        return nil;
+    }
+
+    return @[];
+}
+
+#pragma mark - Required Device Incapabilities
+
+- (NSArray *)requiredDeviceIncapabilitiesForModuleWithIdentifier:(NSString *)identifier
+{
+    if (![identifier isEqualToString:kSleepModeIdentifier]) {
+        return nil;
+    }
+
+    return @[];
 }
 
 #pragma mark - Settings Icon
 
 - (id)settingsIconForModuleIdentifier:(NSString *)identifier
 {
-    if (![identifier isEqualToString:kModuleIdentifier]) {
+    if (![identifier isEqualToString:kSleepModeIdentifier]) {
         return nil;
     }
 
     return nil;
 }
 
-#pragma mark - Device Families
+#pragma mark - Supported Device Families
 
 - (NSArray *)supportedDeviceFamiliesForModuleWithIdentifier:(NSString *)identifier
 {
-    if (![identifier isEqualToString:kModuleIdentifier]) {
+    if (![identifier isEqualToString:kSleepModeIdentifier]) {
         return nil;
     }
 
     /*
-     iPhone + iPad
+     1 = iPhone
+     2 = iPad
     */
     return @[
         @(1),
@@ -164,39 +191,14 @@ static NSString * const kDisplayName =
     ];
 }
 
-#pragma mark - Required Capabilities
-
-- (NSArray *)requiredDeviceCapabilitiesForModuleWithIdentifier:(NSString *)identifier
-{
-    if (![identifier isEqualToString:kModuleIdentifier]) {
-        return nil;
-    }
-
-    return @[];
-}
-
-#pragma mark - Required Incapabilities
-
-- (NSArray *)requiredDeviceIncapabilitiesForModuleWithIdentifier:(NSString *)identifier
-{
-    if (![identifier isEqualToString:kModuleIdentifier]) {
-        return nil;
-    }
-
-    return @[];
-}
-
 #pragma mark - Visibility
 
 - (NSInteger)visibilityPreferenceForModuleWithIdentifier:(NSString *)identifier
 {
-    if (![identifier isEqualToString:kModuleIdentifier]) {
+    if (![identifier isEqualToString:kSleepModeIdentifier]) {
         return -1;
     }
 
-    /*
-     0 = bình thường
-    */
     return 0;
 }
 

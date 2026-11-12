@@ -5,7 +5,6 @@ THEOS_PACKAGE_SCHEME = roothide
 
 include $(THEOS)/makefiles/common.mk
 
-
 TWEAK_NAME = SleepMode
 
 SleepMode_FILES = \
@@ -27,14 +26,11 @@ SleepMode_PRIVATE_FRAMEWORKS = \
     BackBoardServices \
     FrontBoardServices
 
-
 SUBPROJECTS += SleepModePrefs
-
 
 include $(THEOS_MAKE_PATH)/tweak.mk
 include $(THEOS_MAKE_PATH)/aggregate.mk
 include $(THEOS_MAKE_PATH)/package.mk
-
 
 after-stage::
 	@mkdir -p $(THEOS_STAGING_DIR)/Library/PreferenceLoader/Preferences
@@ -43,10 +39,16 @@ after-stage::
 		$(THEOS_STAGING_DIR)/Library/PreferenceLoader/Preferences/SleepModePrefs.plist
 
 	@echo ""
-	@echo "===== SLEEPMODE PREFS ====="
+	@echo "===== SLEEPMODE SETTINGS ====="
+
+	@plutil -lint \
+		$(THEOS_STAGING_DIR)/Library/PreferenceLoader/Preferences/SleepModePrefs.plist
+
+	@echo ""
+	@echo "===== PREFERENCE BUNDLE ====="
 
 	@find $(THEOS_STAGING_DIR)/Library/PreferenceBundles \
-		-maxdepth 2 \
+		-maxdepth 3 \
 		-type f \
 		-print 2>/dev/null || true
 

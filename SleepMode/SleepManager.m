@@ -3,14 +3,23 @@
 #import <UIKit/UIKit.h>
 #import <objc/message.h>
 
+
+static NSString * const kSleepModeEnabledKey =
+    @"Enabled";
+
+static NSString * const kSleepModeTimeoutKey =
+    @"Timeout";
+
+
 @interface SleepManager ()
 
 @property(nonatomic, strong) NSTimer *timer;
-@property(nonatomic, assign) BOOL started;
 
 @end
 
+
 @implementation SleepManager
+
 
 + (instancetype)sharedInstance
 {
@@ -25,55 +34,101 @@
     return instance;
 }
 
+
 - (instancetype)init
 {
     self = [super init];
 
     if (self) {
-        _enabled = NO;
-        _timeout = 15.0;
-        _started = NO;
+
+        NSUserDefaults *defaults =
+            [NSUserDefaults standardUserDefaults];
+
+        BOOL enabled =
+            [defaults objectForKey:kSleepModeEnabledKey]
+                ? [defaults boolForKey:kSleepModeEnabledKey]
+                : NO;
+
+        NSTimeInterval timeout =
+            [defaults objectForKey:kSleepModeTimeoutKey]
+                ? [defaults doubleForKey:kSleepModeTimeoutKey]
+                : 60.0;
+
+        _enabled = enabled;
+        _timeout = timeout;
     }
 
     return self;
 }
 
-#pragma mark - Start
+
+#pragma mark - Enabled
+
+- (void)setEnabled:(BOOL)enabled
+{
+    _enabled = enabled;
+
+    NSUserDefaults *defaults =
+        [NSUserDefaults standardUserDefaults];
+
+    [defaults setBool:enabled
+               forKey:kSleepModeEnabledKey];
+
+    [defaults synchronize];
+
+    if (enabled) {
+        [self start];
+    }
+    else {
+        [self stop];
+    }
+}
+
+
+#pragma mark - Timeout
+
+- (void)setTimeout:(NSTimeInterval)timeout
+{
+    if (timeout < 1.0) {
+        timeout = 1.0;
+    }
+
+    _timeout = timeout;
+
+    NSUserDefaults *defaults =
+        [NSUserDefaults standardUserDefaults];
+
+    [defaults setDouble:timeout
+                 forKey:kSleepModeTimeoutKey];
+
+    [defaults synchronize];
+
+    if (self.enabled) {
+        [self resetTimer];
+    }
+}
+
+
+#pragma mark - Timer
 
 - (void)start
 {
+    [self stop];
+
     if (!self.enabled) {
         return;
     }
 
-    [self.timer invalidate];
-    self.timer = nil;
-
-    self.timer =
-        [NSTimer timerWithTimeInterval:self.timeout
-                                target:self
-                              selector:@selector(timerFired:)
-                              userInfo:nil
-                               repeats:NO];
-
-    [[NSRunLoop mainRunLoop]
-        addTimer:self.timer
-        forMode:NSRunLoopCommonModes];
-
-    self.started = YES;
+    [self resetTimer];
 }
 
-#pragma mark - Stop
 
 - (void)stop
 {
     [self.timer invalidate];
-
     self.timer = nil;
-    self.started = NO;
 }
 
-#pragma mark - Reset
 
 - (void)resetTimer
 {
@@ -81,168 +136,108 @@
         return;
     }
 
-    [self start];
+    [self.timer invalidate];
+    self.timer = nil;
+
+
+    NSTimeInterval interval =
+        self.timeout;
+
+    if (interval < 1.0) {
+        interval = 1.0;
+    }
+
+
+    self.timer =
+        [NSTimer scheduledTimerWithTimeInterval:interval
+                                         target:self
+                                       selector:@selector(timerFired:)
+                                       userInfo:nil
+                                        repeats:NO];
+
+
+    /*
+     * Đảm bảo timer vẫn chạy trong lúc UITrackingRunLoopMode
+     * hoặc các mode khác đang hoạt động.
+     */
+    [[NSRunLoop mainRunLoop]
+        addTimer:self.timer
+        forMode:NSRunLoopCommonModes];
 }
 
-#pragma mark - Timer
+
+#pragma mark - Timer fired
 
 - (void)timerFired:(NSTimer *)timer
 {
     self.timer = nil;
-    self.started = NO;
 
     if (!self.enabled) {
         return;
     }
 
-    [self terminateUserApps];
-
+    /*
+     * Khi timer hết hạn, khóa màn hình.
+     */
     [self lockDevice];
 }
 
-#pragma mark - Terminate Apps
 
-- (void)terminateUserApps
-{
-    /*
-     * Không dùng performSelector:
-     * tránh ARC warning/error với selector động.
-     *
-     * Phần này cố gắng gọi private SpringBoard service
-     * nếu tồn tại.
-     */
-
-    Class serviceClass =
-        NSClassFromString(@"FBSystemService");
-
-    if (!serviceClass) {
-        return;
-    }
-
-    SEL sharedInstanceSEL =
-        NSSelectorFromString(@"sharedInstance");
-
-    if (![serviceClass respondsToSelector:sharedInstanceSEL]) {
-        return;
-    }
-
-    id service =
-        ((id (*)(id, SEL))objc_msgSend)(
-            serviceClass,
-            sharedInstanceSEL
-        );
-
-    if (!service) {
-        return;
-    }
-
-    SEL terminateSEL =
-        NSSelectorFromString(
-            @"terminateApplication:forReason:andReport:"
-        );
-
-    if (![service respondsToSelector:terminateSEL]) {
-        return;
-    }
-
-    /*
-     * Không truyền danh sách app giả.
-     *
-     * Một số bản iOS không cho terminate toàn bộ
-     * user app theo cách này.
-     *
-     * Nếu private API không tồn tại thì bỏ qua,
-     * sau đó vẫn khóa máy.
-     */
-}
-
-#pragma mark - Lock Device
+#pragma mark - Lock device
 
 - (void)lockDevice
 {
-    /*
-     * Cách chính:
-     * SBBackBoardController
-     */
-
-    Class backBoardClass =
+    Class backBoardControllerClass =
         NSClassFromString(@"SBBackBoardController");
 
-    if (backBoardClass) {
+    if (backBoardControllerClass) {
 
-        SEL sharedInstanceSEL =
-            NSSelectorFromString(@"sharedInstance");
+        SEL sharedSelector =
+            @selector(sharedInstance);
 
-        if ([backBoardClass
-                respondsToSelector:sharedInstanceSEL]) {
+        if ([backBoardControllerClass
+                respondsToSelector:sharedSelector]) {
 
             id controller =
-                ((id (*)(id, SEL))objc_msgSend)(
-                    backBoardClass,
-                    sharedInstanceSEL
+                ((id (*)(id, SEL))
+                 objc_msgSend)(
+                    backBoardControllerClass,
+                    sharedSelector
                 );
 
-            if (controller) {
+            SEL lockSelector =
+                @selector(lockScreen);
 
-                SEL lockSEL =
-                    NSSelectorFromString(@"lockScreen");
+            if ([controller
+                    respondsToSelector:lockSelector]) {
 
-                if ([controller
-                        respondsToSelector:lockSEL]) {
+                ((void (*)(id, SEL))
+                 objc_msgSend)(
+                    controller,
+                    lockSelector
+                );
 
-                    ((void (*)(id, SEL))objc_msgSend)(
-                        controller,
-                        lockSEL
-                    );
-
-                    return;
-                }
+                return;
             }
         }
     }
 
+
     /*
-     * Fallback:
-     * SpringBoard._lockScreen
-     *
-     * Không dùng performSelector để tránh
-     * ARC performSelector-leaks.
+     * Fallback.
      */
+    UIApplication *application =
+        [UIApplication sharedApplication];
 
-    Class springBoardClass =
-        NSClassFromString(@"SpringBoard");
+    SEL lockSelector =
+        @selector(_lockScreen);
 
-    if (!springBoardClass) {
-        return;
-    }
+    if ([application respondsToSelector:lockSelector]) {
 
-    SEL sharedApplicationSEL =
-        NSSelectorFromString(@"sharedApplication");
-
-    if (![springBoardClass
-            respondsToSelector:sharedApplicationSEL]) {
-        return;
-    }
-
-    id springBoard =
-        ((id (*)(id, SEL))objc_msgSend)(
-            springBoardClass,
-            sharedApplicationSEL
-        );
-
-    if (!springBoard) {
-        return;
-    }
-
-    SEL lockSEL =
-        NSSelectorFromString(@"_lockScreen");
-
-    if ([springBoard
-            respondsToSelector:lockSEL]) {
-
-        ((void (*)(id, SEL))objc_msgSend)(
-            springBoard,
-            lockSEL
+        ((void (*)(id, SEL))
+         objc_msgSend)(
+            application,
+            lockSelector
         );
     }
 }

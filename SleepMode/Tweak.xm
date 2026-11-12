@@ -7,47 +7,6 @@
 
 %group SpringBoardGroup
 
-/*
- * SBIdleTimerGlobalCoordinator
- *
- * SpringBoard sử dụng class này để quản lý
- * idle timer toàn hệ thống.
- *
- * NexusBoard binary mà bạn cung cấp cũng có
- * selector:
- *
- *     resetIdleTimer
- *
- * Vì vậy SleepMode sẽ dùng chính điểm này
- * để biết hệ thống vừa nhận interaction.
- */
-
-%hook SBIdleTimerGlobalCoordinator
-
-- (void)resetIdleTimer
-{
-    /*
-     * Cho SpringBoard xử lý bình thường trước.
-     */
-    %orig;
-
-    /*
-     * Báo cho SleepManager:
-     *
-     * "Có hoạt động người dùng"
-     *
-     * Không cần biết interaction bắt nguồn
-     * từ Safari, game, Settings hay app nào.
-     */
-    [[SleepManager sharedInstance]
-        userDidInteract];
-}
-
-%end
-
-
-#pragma mark - SpringBoard Startup
-
 %hook SpringBoard
 
 - (void)applicationDidFinishLaunching:
@@ -59,16 +18,57 @@
         @"[SleepMode] SpringBoard started"
     );
 
-    /*
-     * Khởi động SleepManager.
-     */
     [SleepManager sharedInstance];
+}
+
+#pragma mark - SpringBoard Event
+
+- (void)sendEvent:(UIEvent *)event
+{
+    /*
+     * Kiểm tra touch trước.
+     *
+     * Không reset timer đối với:
+     * - keyboard
+     * - motion
+     * - remote control
+     * - các event không phải touch
+     */
+
+    if (event != nil &&
+        event.type == UIEventTypeTouches) {
+
+        NSSet *touches =
+            [event allTouches];
+
+        for (UITouch *touch
+             in touches) {
+
+            UITouchPhase phase =
+                touch.phase;
+
+            if (phase == UITouchPhaseBegan ||
+                phase == UITouchPhaseMoved ||
+                phase == UITouchPhaseEnded) {
+
+                NSLog(
+                    @"[SleepMode] SpringBoard touch detected"
+                );
+
+                [[SleepManager sharedInstance]
+                    userDidInteract];
+
+                break;
+            }
+        }
+    }
+
+    %orig;
 }
 
 %end
 
 %end
-
 
 #pragma mark - Constructor
 
@@ -77,6 +77,10 @@
     NSString *bundleID =
         [[NSBundle mainBundle]
             bundleIdentifier];
+
+    if (bundleID == nil) {
+        return;
+    }
 
     if ([bundleID
             isEqualToString:
@@ -87,11 +91,5 @@
         );
 
         %init(SpringBoardGroup);
-
-        return;
     }
-
-    /*
-     * Không làm gì trong các app khác.
-     */
 }

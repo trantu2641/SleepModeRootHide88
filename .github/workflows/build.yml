@@ -18,6 +18,43 @@ jobs:
         uses: actions/checkout@v4
 
 
+
+      # =====================================================
+      # 9.5. KIỂM TRA PREFERENCE BUNDLE
+      # =====================================================
+
+      - name: Check SleepMode Preferences
+        run: |
+          echo "================================"
+          echo "SLEEPMODE PREFS"
+          echo "================================"
+
+          find SleepModePrefs \
+            -maxdepth 2 \
+            -type f \
+            -print
+
+          echo ""
+
+          for FILE in \
+            SleepModePrefs/SleepModePrefs.m \
+            SleepModePrefs/Root.plist \
+            SleepModePrefs/entry.plist \
+            SleepModePrefs/Resources/icon.png
+          do
+
+            if [ ! -f "$FILE" ]; then
+              echo "ERROR: Missing:"
+              echo "$FILE"
+              exit 1
+            fi
+
+            echo "OK: $FILE"
+          done
+
+
+
+
       # =====================================================
       # 2. CHỌN XCODE
       # =====================================================
@@ -327,11 +364,15 @@ jobs:
 
           REQUIRED_FILES="
           SleepMode/Makefile
-          SleepMode/control
           SleepMode/SleepMode.plist
           SleepMode/Tweak.xm
           SleepMode/SleepManager.h
           SleepMode/SleepManager.m
+          SleepModePrefs/Makefile
+          SleepModePrefs/SleepModePrefs.m
+          SleepModePrefs/Root.plist
+          SleepModePrefs/entry.plist
+          SleepModePrefs/Resources/icon.png
           "
 
 

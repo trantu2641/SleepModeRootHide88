@@ -1,6 +1,8 @@
 #import <Foundation/Foundation.h>
 #import <UIKit/UIKit.h>
 
+#pragma mark - CCSModuleProvider
+
 @protocol CCSModuleProvider <NSObject>
 
 - (NSUInteger)numberOfProvidedModules;
@@ -11,10 +13,10 @@
 - (NSString *)displayNameForModuleIdentifier:
     (NSString *)identifier;
 
-- (NSString *)associatedBundleIdentifierForModuleWithIdentifier:
+- (NSString *)associatedBundleMinimumVersionForModuleWithIdentifier:
     (NSString *)identifier;
 
-- (NSString *)associatedBundleMinimumVersionForModuleWithIdentifier:
+- (NSString *)associatedBundleIdentifierForModuleWithIdentifier:
     (NSString *)identifier;
 
 - (id)moduleInstanceForModuleIdentifier:
@@ -38,14 +40,14 @@
 @end
 
 
-@interface SleepModeProvider :
-    NSObject <CCSModuleProvider>
+#pragma mark - SleepModeProvider
+
+@interface SleepModeProvider : NSObject
+<CCSModuleProvider>
 @end
 
 
 @implementation SleepModeProvider
-
-#pragma mark - Module list
 
 - (NSUInteger)numberOfProvidedModules
 {
@@ -77,7 +79,18 @@
 }
 
 
-#pragma mark - Associated bundle
+- (NSString *)associatedBundleMinimumVersionForModuleWithIdentifier:
+    (NSString *)identifier
+{
+    if (![identifier isEqualToString:
+            @"com.trantu.sleepmode"]) {
+
+        return nil;
+    }
+
+    return @"1.6.0";
+}
+
 
 - (NSString *)associatedBundleIdentifierForModuleWithIdentifier:
     (NSString *)identifier
@@ -92,21 +105,6 @@
 }
 
 
-- (NSString *)associatedBundleMinimumVersionForModuleWithIdentifier:
-    (NSString *)identifier
-{
-    if (![identifier isEqualToString:
-            @"com.trantu.sleepmode"]) {
-
-        return nil;
-    }
-
-    return @"1.6.0";
-}
-
-
-#pragma mark - Module instance
-
 - (id)moduleInstanceForModuleIdentifier:
     (NSString *)identifier
 {
@@ -116,42 +114,16 @@
         return nil;
     }
 
-    NSString *bundlePath =
-        @"/Library/ControlCenter/Bundles/"
-         "SleepModeModule.bundle";
+    /*
+     * CCSupport sẽ liên kết module bundle
+     * thông qua associatedBundleIdentifier.
+     *
+     * Không tự load bundle ở đây.
+     */
 
-    NSBundle *bundle =
-        [NSBundle bundleWithPath:bundlePath];
-
-    if (bundle == nil) {
-        NSLog(@"[SleepModeProvider] "
-              @"SleepModeModule.bundle not found");
-
-        return nil;
-    }
-
-    Class moduleClass =
-        NSClassFromString(@"SleepModeModule");
-
-    if (moduleClass == Nil) {
-        NSLog(@"[SleepModeProvider] "
-              @"SleepModeModule class not found");
-
-        return nil;
-    }
-
-    id module =
-        [[moduleClass alloc] init];
-
-    NSLog(@"[SleepModeProvider] "
-          @"SleepModeModule instance = %@",
-          module);
-
-    return module;
+    return nil;
 }
 
-
-#pragma mark - Settings icon
 
 - (UIImage *)settingsIconForModuleIdentifier:
     (NSString *)identifier
@@ -162,25 +134,23 @@
         return nil;
     }
 
-    NSBundle *providerBundle =
+    NSBundle *bundle =
         [NSBundle bundleForClass:
             [self class]];
 
-    NSString *iconPath =
-        [providerBundle
-            pathForResource:@"SleepModeProviderIcon"
-                     ofType:@"png"];
+    NSString *path =
+        [bundle pathForResource:
+            @"SleepModeProviderIcon"
+        ofType:@"png"];
 
-    if (iconPath == nil) {
+    if (path == nil) {
         return nil;
     }
 
     return [UIImage imageWithContentsOfFile:
-        iconPath];
+        path];
 }
 
-
-#pragma mark - Device
 
 - (NSUInteger)supportedDeviceFamiliesForModuleWithIdentifier:
     (NSString *)identifier
@@ -208,8 +178,6 @@
     return nil;
 }
 
-
-#pragma mark - Visibility
 
 - (NSUInteger)visibilityPreferenceForModuleWithIdentifier:
     (NSString *)identifier

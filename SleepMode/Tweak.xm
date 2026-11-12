@@ -23,17 +23,11 @@
 
 
 /*
- * Bắt touch ở tầng SpringBoard.
+ * Bắt touch event ở tầng SpringBoard.
  *
- * Quan trọng:
  * SleepMode chỉ inject vào SpringBoard.
  *
- * Vì vậy:
- *
- * Home Screen       -> bắt được
- * App Library       -> bắt được
- * Control Center    -> bắt được
- * SpringBoard UI    -> bắt được
+ * Vì vậy không cần inject vào từng app.
  */
 - (void)sendEvent:(UIEvent *)event
 {
@@ -84,10 +78,7 @@
 #pragma mark - SpringBoard Idle Timer
 
 /*
- * Đây là tín hiệu bổ sung của iOS.
- *
- * Khi hệ thống reset idle timer,
- * SleepMode cũng reset bộ đếm.
+ * Tín hiệu bổ sung từ hệ thống idle timer.
  */
 %hook SBIdleTimerGlobalCoordinator
 
@@ -107,51 +98,62 @@
 #pragma mark - Lock / Unlock
 
 /*
- * Bắt trạng thái khóa / mở khóa trực tiếp
- * từ SBLockScreenManager.
+ * iOS 16.x:
  *
- * Không phụ thuộc notification name.
+ * Lock:
+ *     lockFromSource:
+ *
+ * Unlock:
+ *     unlockUIFromSource:withOptions:
+ *
+ * Đây là điểm quan trọng.
+ *
+ * Bản trước dùng:
+ *
+ *     unlockUIFromSource:
+ *
+ * nên không được gọi trên iOS 16.4.
  */
 
 %hook SBLockScreenManager
 
-/*
- * Thiết bị vừa khóa.
- */
-- (void)lockUIFromSource:(int)source
-{
-    %orig;
 
-    NSLog(@"[SleepMode] Device locked");
+/*
+ * Thiết bị chuyển sang trạng thái LOCK.
+ */
+- (void)lockFromSource:(int)source
+{
+    NSLog(
+        @"[SleepMode] lockFromSource: %d",
+        source
+    );
+
+    %orig;
 
     [[SleepManager sharedInstance]
         deviceDidLock];
 }
 
+
 /*
- * Một số phiên bản SpringBoard sử dụng
- * unlockUIFromSource:
+ * Thiết bị vừa unlock.
+ *
+ * Selector thực tế có thêm withOptions:
  */
 - (void)unlockUIFromSource:(int)source
+               withOptions:(id)options
 {
+    NSLog(
+        @"[SleepMode] unlockUIFromSource:withOptions:"
+    );
+
     %orig;
 
-    NSLog(@"[SleepMode] Device unlocked");
-
-    [[SleepManager sharedInstance]
-        deviceDidUnlock];
-}
-
-/*
- * Một số đường unlock có thể đi qua
- * finishUIUnlockFromSource:
- */
-- (void)finishUIUnlockFromSource:(int)source
-{
-    %orig;
-
-    NSLog(@"[SleepMode] Unlock finished");
-
+    /*
+     * Reset toàn bộ chu kỳ.
+     *
+     * Timer sẽ bắt đầu lại từ 0.
+     */
     [[SleepManager sharedInstance]
         deviceDidUnlock];
 }
@@ -168,7 +170,7 @@
             bundleIdentifier];
 
     /*
-     * Chỉ inject vào SpringBoard.
+     * Chỉ chạy trong SpringBoard.
      */
     if ([bundleID
             isEqualToString:

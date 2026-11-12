@@ -6,11 +6,15 @@ THEOS_PACKAGE_SCHEME = roothide
 include $(THEOS)/makefiles/common.mk
 
 
+# =====================================================
+# SLEEPMODE TWEAK
+# =====================================================
+
 TWEAK_NAME = SleepMode
 
 SleepMode_FILES = \
-    SleepMode/Tweak.xm \
-    SleepMode/SleepManager.m
+    Tweak.xm \
+    SleepManager.m
 
 SleepMode_CFLAGS = \
     -fobjc-arc \
@@ -28,10 +32,14 @@ SleepMode_PRIVATE_FRAMEWORKS = \
     FrontBoardServices
 
 
+# =====================================================
+# SLEEPMODE PREFERENCE BUNDLE
+# =====================================================
+
 BUNDLE_NAME = SleepModePrefs
 
 SleepModePrefs_FILES = \
-    SleepModePrefs/SleepModePrefs.m
+    ../SleepModePrefs/SleepModePrefs.m
 
 SleepModePrefs_CFLAGS = \
     -fobjc-arc \
@@ -48,9 +56,36 @@ SleepModePrefs_INSTALL_PATH = \
     /Library/PreferenceBundles
 
 SleepModePrefs_RESOURCE_DIRS = \
-    SleepModePrefs/Resources
+    ../SleepModePrefs/Resources
 
+
+# =====================================================
+# PACKAGE
+# =====================================================
 
 include $(THEOS_MAKE_PATH)/tweak.mk
 include $(THEOS_MAKE_PATH)/bundle.mk
 include $(THEOS_MAKE_PATH)/package.mk
+
+
+# =====================================================
+# PREFERENCELOADER ENTRY
+# =====================================================
+
+after-stage::
+	@mkdir -p \
+		$(THEOS_STAGING_DIR)/Library/PreferenceLoader/Preferences
+
+	@cp \
+		../SleepModePrefs/entry.plist \
+		$(THEOS_STAGING_DIR)/Library/PreferenceLoader/Preferences/SleepModePrefs.plist
+
+	@echo ""
+	@echo "========================================"
+	@echo "SLEEPMODE PREFERENCELOADER"
+	@echo "========================================"
+
+	@ls -lh \
+		$(THEOS_STAGING_DIR)/Library/PreferenceLoader/Preferences/SleepModePrefs.plist
+
+	@echo ""

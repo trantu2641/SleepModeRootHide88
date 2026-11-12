@@ -46,6 +46,9 @@ SleepModeModule_FRAMEWORKS = \
     UIKit \
     Foundation
 
+SleepModeModule_PRIVATE_FRAMEWORKS = \
+    ControlCenterUI
+
 SleepModeModule_INSTALL_PATH = \
     /Library/ControlCenter/Bundles
 

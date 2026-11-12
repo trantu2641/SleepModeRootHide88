@@ -3,13 +3,6 @@ name: Build SleepMode RootHide
 on:
   workflow_dispatch:
 
-  push:
-    branches:
-      - main
-      - develop
-      - feature/core
-
-
 jobs:
 
   build:

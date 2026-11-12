@@ -2,9 +2,18 @@
 #import <Foundation/Foundation.h>
 #import <objc/runtime.h>
 
-#import "SleepControlCenter.h"
+#pragma mark - Shared State
 
-#pragma mark - Private CCUI interfaces
+static NSString * const kSleepModeEnabledKey =
+    @"SleepModeEnabled";
+
+static NSString * const kSleepModeTimeoutKey =
+    @"SleepModeTimeout";
+
+static NSString * const kSleepModeNotification =
+    @"com.trantu.sleepmode.stateChanged";
+
+#pragma mark - CCUIContentModule
 
 @protocol CCUIContentModule <NSObject>
 
@@ -61,21 +70,6 @@
     }
 }
 
-- (instancetype)init
-{
-    self = [super init];
-
-    if (self) {
-        /*
-         * Không làm việc nặng ở đây.
-         */
-    }
-
-    return self;
-}
-
-#pragma mark - CCUIContentModule
-
 - (UIViewController *)contentViewController
 {
     return [[SleepModeContentViewController alloc] init];
@@ -92,7 +86,7 @@
 
 @implementation SleepModeContentViewController
 
-#pragma mark - View
+#pragma mark - ViewDidLoad
 
 - (void)viewDidLoad
 {
@@ -108,7 +102,7 @@
     [[NSNotificationCenter defaultCenter]
         addObserver:self
         selector:@selector(updateUI)
-        name:SleepControlCenterStateChangedNotification
+        name:kSleepModeNotification
         object:nil];
 }
 
@@ -122,9 +116,6 @@
 
 - (void)buildUI
 {
-    /*
-     * Tiêu đề
-     */
     UILabel *titleLabel =
         [[UILabel alloc] init];
 
@@ -147,11 +138,9 @@
 
     [self.view addSubview:titleLabel];
 
-    self.titleLabel = titleLabel;
+    self.titleLabel =
+        titleLabel;
 
-    /*
-     * Trạng thái
-     */
     UILabel *stateLabel =
         [[UILabel alloc] init];
 
@@ -171,11 +160,9 @@
 
     [self.view addSubview:stateLabel];
 
-    self.stateLabel = stateLabel;
+    self.stateLabel =
+        stateLabel;
 
-    /*
-     * Nút bật / tắt
-     */
     UIButton *toggleButton =
         [UIButton buttonWithType:UIButtonTypeSystem];
 
@@ -197,9 +184,6 @@
     self.toggleButton =
         toggleButton;
 
-    /*
-     * Gợi ý long press
-     */
     UILabel *hintLabel =
         [[UILabel alloc] init];
 
@@ -224,9 +208,6 @@
     self.hintLabel =
         hintLabel;
 
-    /*
-     * Long press.
-     */
     UILongPressGestureRecognizer *longPress =
         [[UILongPressGestureRecognizer alloc]
             initWithTarget:self
@@ -238,9 +219,6 @@
     [toggleButton addGestureRecognizer:
         longPress];
 
-    /*
-     * Layout.
-     */
     [NSLayoutConstraint activateConstraints:@[
 
         [titleLabel.topAnchor
@@ -310,30 +288,47 @@
     ]];
 }
 
+#pragma mark - State
+
+- (BOOL)sleepModeEnabled
+{
+    return [[NSUserDefaults standardUserDefaults]
+        boolForKey:kSleepModeEnabledKey];
+}
+
+- (NSTimeInterval)sleepModeTimeout
+{
+    double timeout =
+        [[NSUserDefaults standardUserDefaults]
+            doubleForKey:kSleepModeTimeoutKey];
+
+    if (timeout < 1.0) {
+        timeout = 15.0;
+    }
+
+    return timeout;
+}
+
 #pragma mark - Update UI
 
 - (void)updateUI
 {
-    SleepControlCenter *control =
-        [SleepControlCenter sharedInstance];
-
-    BOOL enabled =
-        control.enabled;
-
-    NSTimeInterval timeout =
-        control.currentTimeout;
-
     dispatch_async(
         dispatch_get_main_queue(),
         ^{
+
+            BOOL enabled =
+                [self sleepModeEnabled];
+
+            NSTimeInterval timeout =
+                [self sleepModeTimeout];
 
             if (enabled) {
 
                 self.stateLabel.text =
                     [NSString stringWithFormat:
                         @"Đang bật · %@",
-                        [self timeoutText:
-                            timeout]];
+                        [self timeoutText:timeout]];
 
                 self.stateLabel.textColor =
                     [UIColor colorWithRed:0.35
@@ -350,11 +345,6 @@
                                     green:0.65
                                      blue:0.30
                                     alpha:1.0];
-
-                [self.toggleButton
-                    setTitleColor:
-                        [UIColor whiteColor]
-                    forState:UIControlStateNormal];
             }
             else {
 
@@ -372,12 +362,12 @@
                 self.toggleButton.backgroundColor =
                     [UIColor colorWithWhite:0.25
                                       alpha:1.0];
-
-                [self.toggleButton
-                    setTitleColor:
-                        [UIColor whiteColor]
-                    forState:UIControlStateNormal];
             }
+
+            [self.toggleButton
+                setTitleColor:
+                    [UIColor whiteColor]
+                forState:UIControlStateNormal];
         }
     );
 }
@@ -386,10 +376,24 @@
 
 - (void)togglePressed:(UIButton *)sender
 {
-    SleepControlCenter *control =
-        [SleepControlCenter sharedInstance];
+    BOOL enabled =
+        [self sleepModeEnabled];
 
-    [control toggle];
+    NSUserDefaults *defaults =
+        [NSUserDefaults standardUserDefaults];
+
+    [defaults setBool:!enabled
+               forKey:kSleepModeEnabledKey];
+
+    [defaults synchronize];
+
+    /*
+     * Gọi API của tweak qua notification.
+     * Tweak sẽ nhận và áp dụng trạng thái.
+     */
+    [[NSNotificationCenter defaultCenter]
+        postNotificationName:kSleepModeNotification
+        object:nil];
 
     [self updateUI];
 }
@@ -412,9 +416,6 @@
 
 - (void)showTimeoutMenu
 {
-    SleepControlCenter *control =
-        [SleepControlCenter sharedInstance];
-
     UIAlertController *alert =
         [UIAlertController
             alertControllerWithTitle:
@@ -454,18 +455,27 @@
         NSString *title =
             titles[i];
 
-        UIAlertAction *action =
+        [alert addAction:
             [UIAlertAction
                 actionWithTitle:title
                 style:UIAlertActionStyleDefault
                 handler:^(UIAlertAction *action) {
 
-                    [control setTimeout:value];
+                    NSUserDefaults *defaults =
+                        [NSUserDefaults standardUserDefaults];
+
+                    [defaults setDouble:value
+                                 forKey:kSleepModeTimeoutKey];
+
+                    [defaults synchronize];
+
+                    [[NSNotificationCenter defaultCenter]
+                        postNotificationName:
+                            kSleepModeNotification
+                        object:nil];
 
                     [self updateUI];
-                }];
-
-        [alert addAction:action];
+                }]];
     }
 
     [alert addAction:

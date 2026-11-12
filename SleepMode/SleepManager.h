@@ -16,4 +16,7 @@
 - (void)terminateUserApplications;
 - (void)enterSleepMode;
 
+- (void)deviceDidLock;
+- (void)deviceDidUnlock;
+
 @end

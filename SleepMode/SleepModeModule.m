@@ -1,22 +1,145 @@
 #import <Foundation/Foundation.h>
 #import <UIKit/UIKit.h>
+#import <objc/message.h>
+#import <objc/runtime.h>
 
-#import "SleepControlCenter.h"
-#import "SleepManager.h"
+
+#pragma mark - Constants
+
+static NSString * const
+    kSleepControlCenterClassName =
+        @"SleepControlCenter";
+
+static NSString * const
+    kSleepControlCenterNotification =
+        @"com.trantu.sleepmode.stateChanged";
 
 
-#pragma mark - Minimal Control Center Interfaces
+#pragma mark - Runtime Helpers
 
-/*
- * SDK iPhoneOS 16.5 của Theos không có:
- *
- * ControlCenterUIKit/CCUIContentModule.h
- *
- * Vì vậy không import header đó.
- *
- * Module chỉ cần một số phương thức cơ bản để
- * Control Center giao tiếp với module.
- */
+static id SleepControlCenterInstance(void)
+{
+    Class cls =
+        NSClassFromString(kSleepControlCenterClassName);
+
+    if (cls == Nil) {
+        NSLog(@"[SleepModeModule] SleepControlCenter class not found");
+        return nil;
+    }
+
+    SEL selector =
+        NSSelectorFromString(@"sharedInstance");
+
+    if (![cls respondsToSelector:selector]) {
+        NSLog(@"[SleepModeModule] sharedInstance not found");
+        return nil;
+    }
+
+    id (*SendMessage)(id, SEL) =
+        (id (*)(id, SEL))objc_msgSend;
+
+    return SendMessage((id)cls, selector);
+}
+
+
+static BOOL SleepControlCenterEnabled(void)
+{
+    id manager =
+        SleepControlCenterInstance();
+
+    if (manager == nil) {
+        return NO;
+    }
+
+    SEL selector =
+        NSSelectorFromString(@"isEnabled");
+
+    if (![manager respondsToSelector:selector]) {
+        return NO;
+    }
+
+    BOOL (*SendMessage)(id, SEL) =
+        (BOOL (*)(id, SEL))objc_msgSend;
+
+    return SendMessage(manager, selector);
+}
+
+
+static NSTimeInterval SleepControlCenterTimeout(void)
+{
+    id manager =
+        SleepControlCenterInstance();
+
+    if (manager == nil) {
+        return 15.0;
+    }
+
+    SEL selector =
+        NSSelectorFromString(@"currentTimeout");
+
+    if (![manager respondsToSelector:selector]) {
+        return 15.0;
+    }
+
+    NSTimeInterval (*SendMessage)(id, SEL) =
+        (NSTimeInterval (*)(id, SEL))objc_msgSend;
+
+    return SendMessage(manager, selector);
+}
+
+
+static void SleepControlCenterToggle(void)
+{
+    id manager =
+        SleepControlCenterInstance();
+
+    if (manager == nil) {
+        NSLog(@"[SleepModeModule] Cannot toggle: manager unavailable");
+        return;
+    }
+
+    SEL selector =
+        NSSelectorFromString(@"toggle");
+
+    if (![manager respondsToSelector:selector]) {
+        NSLog(@"[SleepModeModule] toggle selector not found");
+        return;
+    }
+
+    void (*SendMessage)(id, SEL) =
+        (void (*)(id, SEL))objc_msgSend;
+
+    SendMessage(manager, selector);
+}
+
+
+static void SleepControlCenterSetTimeout(
+    NSTimeInterval timeout)
+{
+    id manager =
+        SleepControlCenterInstance();
+
+    if (manager == nil) {
+        NSLog(@"[SleepModeModule] Cannot set timeout");
+        return;
+    }
+
+    SEL selector =
+        NSSelectorFromString(@"setTimeout:");
+
+    if (![manager respondsToSelector:selector]) {
+        NSLog(@"[SleepModeModule] setTimeout: not found");
+        return;
+    }
+
+    void (*SendMessage)(id, SEL, NSTimeInterval) =
+        (void (*)(id, SEL, NSTimeInterval))objc_msgSend;
+
+    SendMessage(manager, selector, timeout);
+}
+
+
+#pragma mark - Minimal Control Center Protocol
 
 @protocol CCUIContentModule <NSObject>
 
@@ -36,7 +159,7 @@
 @class SleepModeModuleContentViewController;
 
 
-#pragma mark - SleepModeModule
+#pragma mark - Module
 
 @interface SleepModeModule : NSObject <CCUIContentModule>
 
@@ -52,7 +175,8 @@
 
 #pragma mark - Content View Controller
 
-@interface SleepModeModuleContentViewController : UIViewController
+@interface SleepModeModuleContentViewController :
+    UIViewController
 
 @property(nonatomic, strong)
     UIButton *button;
@@ -61,6 +185,8 @@
     UILabel *timeoutLabel;
 
 - (void)updateState:(BOOL)enabled;
+
+- (void)updateTimeoutLabel;
 
 @end
 
@@ -75,18 +201,13 @@
 
     if (self) {
 
-        /*
-         * Module lắng nghe thay đổi trạng thái từ
-         * SleepControlCenter.
-         *
-         * SleepControlCenter không biết module này
-         * tồn tại.
-         */
+        NSLog(@"[SleepModeModule] Initializing");
+
         [[NSNotificationCenter defaultCenter]
             addObserver:self
             selector:@selector(stateChanged:)
-            name:SleepControlCenterStateChangedNotification
-            object:[SleepControlCenter sharedInstance]];
+            name:kSleepControlCenterNotification
+            object:nil];
     }
 
     return self;
@@ -100,7 +221,7 @@
 }
 
 
-#pragma mark - Content Module Context
+#pragma mark - Context
 
 - (void)setContentModuleContext:(id)context
 {
@@ -143,12 +264,16 @@
     });
 }
 
+
 @end
 
 
 #pragma mark - Content View Controller
 
 @implementation SleepModeModuleContentViewController
+
+
+#pragma mark - View
 
 - (void)viewDidLoad
 {
@@ -160,29 +285,36 @@
     self.view.clipsToBounds = YES;
 
 
-    #pragma mark Button
+    /*
+     * Main button
+     */
 
     UIButton *button =
-        [UIButton buttonWithType:UIButtonTypeSystem];
+        [UIButton buttonWithType:
+            UIButtonTypeSystem];
 
-    button.translatesAutoresizingMaskIntoConstraints = NO;
+    button.translatesAutoresizingMaskIntoConstraints =
+        NO;
 
     button.layer.cornerRadius = 14.0;
 
     button.titleLabel.font =
-        [UIFont systemFontOfSize:18.0
+        [UIFont systemFontOfSize:17.0
                            weight:UIFontWeightSemibold];
 
     [button addTarget:self
                action:@selector(buttonPressed:)
-     forControlEvents:UIControlEventTouchUpInside];
+     forControlEvents:
+         UIControlEventTouchUpInside];
 
     [self.view addSubview:button];
 
     self.button = button;
 
 
-    #pragma mark Timeout Label
+    /*
+     * Timeout label
+     */
 
     UILabel *timeoutLabel =
         [[UILabel alloc] init];
@@ -207,7 +339,9 @@
         timeoutLabel;
 
 
-    #pragma mark Layout
+    /*
+     * Layout
+     */
 
     [NSLayoutConstraint activateConstraints:@[
 
@@ -227,7 +361,7 @@
                            constant:4.0],
 
         [button.heightAnchor
-            constraintEqualToConstant:42.0],
+            constraintEqualToConstant:40.0],
 
         [timeoutLabel.leadingAnchor
             constraintEqualToAnchor:
@@ -252,13 +386,13 @@
 
 
     /*
-     * Hiển thị trạng thái ban đầu.
+     * Initial state
      */
-    SleepControlCenter *controlCenter =
-        [SleepControlCenter sharedInstance];
 
-    [self updateState:
-        controlCenter.enabled];
+    BOOL enabled =
+        SleepControlCenterEnabled();
+
+    [self updateState:enabled];
 }
 
 
@@ -266,30 +400,37 @@
 
 - (void)buttonPressed:(UIButton *)sender
 {
-    SleepControlCenter *controlCenter =
-        [SleepControlCenter sharedInstance];
+    NSLog(@"[SleepModeModule] Button pressed");
 
-    [controlCenter toggle];
+    SleepControlCenterToggle();
 
-    [self updateState:
-        controlCenter.enabled];
+    BOOL enabled =
+        SleepControlCenterEnabled();
+
+    [self updateState:enabled];
 }
 
 
 #pragma mark - Long Press
 
-/*
- * Nếu Control Center gọi long press riêng thì
- * module có thể mở màn hình chọn thời gian.
- *
- * Ở đây tạo thêm gesture để dùng được khi module
- * được hiển thị dạng UIViewController.
- */
 - (void)viewDidAppear:(BOOL)animated
 {
     [super viewDidAppear:animated];
 
-    if (self.view.gestureRecognizers.count == 0) {
+    BOOL alreadyInstalled = NO;
+
+    for (UIGestureRecognizer *gesture
+         in self.view.gestureRecognizers) {
+
+        if ([gesture isKindOfClass:
+                [UILongPressGestureRecognizer class]]) {
+
+            alreadyInstalled = YES;
+            break;
+        }
+    }
+
+    if (!alreadyInstalled) {
 
         UILongPressGestureRecognizer *longPress =
             [[UILongPressGestureRecognizer alloc]
@@ -313,6 +454,8 @@
         return;
     }
 
+    NSLog(@"[SleepModeModule] Long press");
+
     [self showTimeoutMenu];
 }
 
@@ -321,15 +464,14 @@
 
 - (void)showTimeoutMenu
 {
-    SleepControlCenter *controlCenter =
-        [SleepControlCenter sharedInstance];
-
     UIAlertController *alert =
         [UIAlertController
-            alertControllerWithTitle:@"SleepMode"
-                             message:@"Chọn thời gian tự khóa"
+            alertControllerWithTitle:
+                @"SleepMode"
+                             message:
+                @"Chọn thời gian tự khóa"
                       preferredStyle:
-                          UIAlertControllerStyleActionSheet];
+                UIAlertControllerStyleActionSheet];
 
 
     NSArray<NSDictionary *> *options = @[
@@ -376,8 +518,9 @@
         NSString *title =
             option[@"title"];
 
-        NSTimeInterval value =
+        NSTimeInterval timeout =
             [option[@"value"] doubleValue];
+
 
         UIAlertAction *action =
             [UIAlertAction
@@ -385,28 +528,27 @@
                          style:UIAlertActionStyleDefault
                        handler:^(__unused UIAlertAction *action) {
 
-            [controlCenter setTimeout:value];
+            NSLog(@"[SleepModeModule] Timeout = %.0f",
+                  timeout);
+
+            SleepControlCenterSetTimeout(timeout);
 
             [self updateTimeoutLabel];
+
         }];
+
 
         [alert addAction:action];
     }
 
 
-    UIAlertAction *cancel =
+    [alert addAction:
         [UIAlertAction
             actionWithTitle:@"Hủy"
                      style:UIAlertActionStyleCancel
-                   handler:nil];
-
-    [alert addAction:cancel];
+                   handler:nil]];
 
 
-    /*
-     * UIAlertController phải được trình bày
-     * từ một UIViewController đang hiển thị.
-     */
     UIViewController *presenter =
         self;
 
@@ -415,6 +557,7 @@
         presenter =
             presenter.presentedViewController;
     }
+
 
     [presenter presentViewController:
         alert
@@ -439,6 +582,7 @@
 
     NSString *title =
         enabled ? @"ON" : @"OFF";
+
 
     [self.button setTitle:
         title
@@ -480,8 +624,8 @@
 - (void)updateTimeoutLabel
 {
     NSTimeInterval timeout =
-        [SleepControlCenter sharedInstance]
-            .currentTimeout;
+        SleepControlCenterTimeout();
+
 
     NSString *text = nil;
 

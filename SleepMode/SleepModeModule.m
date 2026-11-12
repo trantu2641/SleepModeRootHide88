@@ -4,17 +4,13 @@
 #import <objc/runtime.h>
 #import <math.h>
 
+#pragma mark - SleepControlCenter bridge
 
-#pragma mark - Runtime helpers
-
-static Class SleepControlCenterClass(void)
-{
+static Class SleepControlCenterClass(void) {
     return NSClassFromString(@"SleepControlCenter");
 }
 
-
-static id SleepControlCenterInstance(void)
-{
+static id SleepControlCenterInstance(void) {
     Class cls = SleepControlCenterClass();
 
     if (!cls) {
@@ -30,9 +26,7 @@ static id SleepControlCenterInstance(void)
     return ((id (*)(id, SEL))objc_msgSend)(cls, selector);
 }
 
-
-static BOOL SleepIsEnabled(void)
-{
+static BOOL SleepIsEnabled(void) {
     id manager = SleepControlCenterInstance();
 
     if (!manager) {
@@ -48,9 +42,7 @@ static BOOL SleepIsEnabled(void)
     return ((BOOL (*)(id, SEL))objc_msgSend)(manager, selector);
 }
 
-
-static NSTimeInterval SleepCurrentTimeout(void)
-{
+static NSTimeInterval SleepCurrentTimeout(void) {
     id manager = SleepControlCenterInstance();
 
     if (!manager) {
@@ -63,15 +55,10 @@ static NSTimeInterval SleepCurrentTimeout(void)
         return 15.0;
     }
 
-    return ((NSTimeInterval (*)(id, SEL))objc_msgSend)(
-        manager,
-        selector
-    );
+    return ((NSTimeInterval (*)(id, SEL))objc_msgSend)(manager, selector);
 }
 
-
-static void SleepToggle(void)
-{
+static void SleepToggle(void) {
     id manager = SleepControlCenterInstance();
 
     if (!manager) {
@@ -81,16 +68,11 @@ static void SleepToggle(void)
     SEL selector = NSSelectorFromString(@"toggle");
 
     if ([manager respondsToSelector:selector]) {
-        ((void (*)(id, SEL))objc_msgSend)(
-            manager,
-            selector
-        );
+        ((void (*)(id, SEL))objc_msgSend)(manager, selector);
     }
 }
 
-
-static void SleepSetTimeout(NSTimeInterval timeout)
-{
+static void SleepSetTimeout(NSTimeInterval timeout) {
     id manager = SleepControlCenterInstance();
 
     if (!manager) {
@@ -108,12 +90,8 @@ static void SleepSetTimeout(NSTimeInterval timeout)
     }
 }
 
-
-#pragma mark - Notification
-
-static NSString * const
-SleepControlCenterStateChangedNotification =
-@"com.trantu.sleepmode.stateChanged";
+static NSString * const SleepControlCenterStateChangedNotification =
+    @"com.trantu.sleepmode.stateChanged";
 
 
 #pragma mark - Content View Controller
@@ -122,57 +100,46 @@ SleepControlCenterStateChangedNotification =
 @end
 
 
-@implementation SleepModeContentViewController
-{
+@implementation SleepModeContentViewController {
     UIButton *_toggleButton;
     UILabel *_timeoutLabel;
     UIView *_containerView;
     UILongPressGestureRecognizer *_longPressGesture;
 }
 
-
 #pragma mark - Timeout text
 
-- (NSString *)timeoutText:(NSTimeInterval)timeout
-{
+- (NSString *)timeoutText:(NSTimeInterval)timeout {
+
     if (timeout < 60.0) {
 
-        NSInteger seconds =
-            (NSInteger)round(timeout);
+        NSInteger seconds = (NSInteger)round(timeout);
 
-        return [NSString stringWithFormat:
-                @"%ld giây",
+        return [NSString stringWithFormat:@"%ld giây",
                 (long)seconds];
     }
 
     if (timeout < 3600.0) {
 
-        NSInteger minutes =
-            (NSInteger)round(timeout / 60.0);
+        NSInteger minutes = (NSInteger)round(timeout / 60.0);
 
-        return [NSString stringWithFormat:
-                @"%ld phút",
+        return [NSString stringWithFormat:@"%ld phút",
                 (long)minutes];
     }
 
-    NSInteger hours =
-        (NSInteger)round(timeout / 3600.0);
+    NSInteger hours = (NSInteger)round(timeout / 3600.0);
 
-    return [NSString stringWithFormat:
-            @"%ld giờ",
+    return [NSString stringWithFormat:@"%ld giờ",
             (long)hours];
 }
 
 
-#pragma mark - Update UI
+#pragma mark - UI update
 
-- (void)updateUI
-{
-    BOOL enabled =
-        SleepIsEnabled();
+- (void)updateUI {
 
-    NSTimeInterval timeout =
-        SleepCurrentTimeout();
+    BOOL enabled = SleepIsEnabled();
+    NSTimeInterval timeout = SleepCurrentTimeout();
 
     NSString *buttonTitle =
         enabled ? @"Đang bật" : @"Đang tắt";
@@ -182,12 +149,10 @@ SleepControlCenterStateChangedNotification =
             @"Tự động khóa sau %@",
             [self timeoutText:timeout]];
 
-    [_toggleButton
-        setTitle:buttonTitle
-        forState:UIControlStateNormal];
+    [_toggleButton setTitle:buttonTitle
+                   forState:UIControlStateNormal];
 
-    _timeoutLabel.text =
-        timeoutTitle;
+    _timeoutLabel.text = timeoutTitle;
 
     if (enabled) {
 
@@ -204,29 +169,27 @@ SleepControlCenterStateChangedNotification =
 
 #pragma mark - Toggle
 
-- (void)togglePressed
-{
+- (void)togglePressed {
+
     SleepToggle();
 
     [self updateUI];
 }
 
 
-#pragma mark - Timeout menu
+#pragma mark - Long press
 
-- (void)longPress:(UILongPressGestureRecognizer *)gesture
-{
+- (void)longPress:(UILongPressGestureRecognizer *)gesture {
+
     if (gesture.state != UIGestureRecognizerStateBegan) {
         return;
     }
-
 
     UIAlertController *alert =
         [UIAlertController
             alertControllerWithTitle:@"Chế độ ngủ"
             message:@"Chọn thời gian tự động khóa"
             preferredStyle:UIAlertControllerStyleActionSheet];
-
 
     NSArray *timeouts = @[
         @15.0,
@@ -238,7 +201,6 @@ SleepControlCenterStateChangedNotification =
         @7200.0
     ];
 
-
     NSArray *titles = @[
         @"15 giây",
         @"1 phút",
@@ -249,7 +211,6 @@ SleepControlCenterStateChangedNotification =
         @"2 giờ"
     ];
 
-
     for (NSInteger i = 0;
          i < (NSInteger)timeouts.count;
          i++) {
@@ -257,8 +218,7 @@ SleepControlCenterStateChangedNotification =
         NSTimeInterval timeout =
             [timeouts[i] doubleValue];
 
-        NSString *title =
-            titles[i];
+        NSString *title = titles[i];
 
         UIAlertAction *action =
             [UIAlertAction
@@ -274,7 +234,6 @@ SleepControlCenterStateChangedNotification =
         [alert addAction:action];
     }
 
-
     UIAlertAction *cancel =
         [UIAlertAction
             actionWithTitle:@"Hủy"
@@ -283,19 +242,14 @@ SleepControlCenterStateChangedNotification =
 
     [alert addAction:cancel];
 
-
     UIPopoverPresentationController *popover =
         alert.popoverPresentationController;
 
     if (popover) {
 
-        popover.sourceView =
-            _toggleButton;
-
-        popover.sourceRect =
-            _toggleButton.bounds;
+        popover.sourceView = _toggleButton;
+        popover.sourceRect = _toggleButton.bounds;
     }
-
 
     [self presentViewController:alert
                        animated:YES
@@ -303,27 +257,24 @@ SleepControlCenterStateChangedNotification =
 }
 
 
-#pragma mark - Load view
+#pragma mark - View
 
-- (void)loadView
-{
+- (void)loadView {
+
     UIView *view =
         [[UIView alloc] initWithFrame:CGRectZero];
 
-    view.backgroundColor =
-        [UIColor clearColor];
+    view.backgroundColor = [UIColor clearColor];
 
-    self.view =
-        view;
+    self.view = view;
 }
 
 
-#pragma mark - View did load
+#pragma mark - ViewDidLoad
 
-- (void)viewDidLoad
-{
+- (void)viewDidLoad {
+
     [super viewDidLoad];
-
 
     /*
      * Container
@@ -332,18 +283,14 @@ SleepControlCenterStateChangedNotification =
     _containerView =
         [[UIView alloc] initWithFrame:CGRectZero];
 
-    _containerView.translatesAutoresizingMaskIntoConstraints =
-        NO;
+    _containerView.translatesAutoresizingMaskIntoConstraints = NO;
 
     _containerView.backgroundColor =
-        [UIColor colorWithWhite:0.18
-                          alpha:1.0];
+        [UIColor colorWithWhite:0.18 alpha:1.0];
 
-    _containerView.layer.cornerRadius =
-        18.0;
+    _containerView.layer.cornerRadius = 18.0;
 
-    _containerView.clipsToBounds =
-        YES;
+    _containerView.clipsToBounds = YES;
 
     [self.view addSubview:_containerView];
 
@@ -355,21 +302,18 @@ SleepControlCenterStateChangedNotification =
     _toggleButton =
         [UIButton buttonWithType:UIButtonTypeSystem];
 
-    _toggleButton.translatesAutoresizingMaskIntoConstraints =
-        NO;
+    _toggleButton.translatesAutoresizingMaskIntoConstraints = NO;
 
     _toggleButton.titleLabel.font =
         [UIFont systemFontOfSize:16.0
                           weight:UIFontWeightSemibold];
 
-    [_toggleButton
-        setTitleColor:[UIColor whiteColor]
-             forState:UIControlStateNormal];
+    [_toggleButton setTitleColor:[UIColor whiteColor]
+                        forState:UIControlStateNormal];
 
-    [_toggleButton
-        addTarget:self
-           action:@selector(togglePressed)
- forControlEvents:UIControlEventTouchUpInside];
+    [_toggleButton addTarget:self
+                      action:@selector(togglePressed)
+            forControlEvents:UIControlEventTouchUpInside];
 
     [_containerView addSubview:_toggleButton];
 
@@ -381,12 +325,10 @@ SleepControlCenterStateChangedNotification =
     _timeoutLabel =
         [[UILabel alloc] initWithFrame:CGRectZero];
 
-    _timeoutLabel.translatesAutoresizingMaskIntoConstraints =
-        NO;
+    _timeoutLabel.translatesAutoresizingMaskIntoConstraints = NO;
 
     _timeoutLabel.textColor =
-        [UIColor colorWithWhite:1.0
-                          alpha:0.75];
+        [UIColor colorWithWhite:1.0 alpha:0.75];
 
     _timeoutLabel.font =
         [UIFont systemFontOfSize:11.0
@@ -395,8 +337,7 @@ SleepControlCenterStateChangedNotification =
     _timeoutLabel.textAlignment =
         NSTextAlignmentCenter;
 
-    _timeoutLabel.numberOfLines =
-        1;
+    _timeoutLabel.numberOfLines = 1;
 
     [_containerView addSubview:_timeoutLabel];
 
@@ -410,71 +351,59 @@ SleepControlCenterStateChangedNotification =
             initWithTarget:self
                     action:@selector(longPress:)];
 
-    _longPressGesture.minimumPressDuration =
-        0.5;
+    _longPressGesture.minimumPressDuration = 0.5;
 
-    [_toggleButton
-        addGestureRecognizer:_longPressGesture];
+    [_toggleButton addGestureRecognizer:_longPressGesture];
 
 
     /*
-     * Layout
+     * Constraints
      */
 
     [NSLayoutConstraint activateConstraints:@[
 
         [_containerView.leadingAnchor
-            constraintEqualToAnchor:
-                self.view.leadingAnchor],
+            constraintEqualToAnchor:self.view.leadingAnchor],
 
         [_containerView.trailingAnchor
-            constraintEqualToAnchor:
-                self.view.trailingAnchor],
+            constraintEqualToAnchor:self.view.trailingAnchor],
 
         [_containerView.topAnchor
-            constraintEqualToAnchor:
-                self.view.topAnchor],
+            constraintEqualToAnchor:self.view.topAnchor],
 
         [_containerView.bottomAnchor
-            constraintEqualToAnchor:
-                self.view.bottomAnchor],
+            constraintEqualToAnchor:self.view.bottomAnchor],
 
 
         [_toggleButton.centerXAnchor
-            constraintEqualToAnchor:
-                _containerView.centerXAnchor],
+            constraintEqualToAnchor:_containerView.centerXAnchor],
 
         [_toggleButton.topAnchor
-            constraintEqualToAnchor:
-                _containerView.topAnchor
-                constant:14.0],
+            constraintEqualToAnchor:_containerView.topAnchor
+                          constant:14.0],
 
 
         [_timeoutLabel.topAnchor
-            constraintEqualToAnchor:
-                _toggleButton.bottomAnchor
-                constant:2.0],
+            constraintEqualToAnchor:_toggleButton.bottomAnchor
+                          constant:2.0],
 
         [_timeoutLabel.leadingAnchor
-            constraintEqualToAnchor:
-                _containerView.leadingAnchor
-                constant:5.0],
+            constraintEqualToAnchor:_containerView.leadingAnchor
+                          constant:5.0],
 
         [_timeoutLabel.trailingAnchor
-            constraintEqualToAnchor:
-                _containerView.trailingAnchor
-                constant:-5.0],
+            constraintEqualToAnchor:_containerView.trailingAnchor
+                          constant:-5.0],
 
         [_timeoutLabel.bottomAnchor
-            constraintEqualToAnchor:
-                _containerView.bottomAnchor
-                constant:-12.0]
+            constraintEqualToAnchor:_containerView.bottomAnchor
+                          constant:-12.0]
 
     ];
 
 
     /*
-     * State notification
+     * Notification
      */
 
     [[NSNotificationCenter defaultCenter]
@@ -494,8 +423,8 @@ SleepControlCenterStateChangedNotification =
 
 #pragma mark - State changed
 
-- (void)stateChanged:(NSNotification *)notification
-{
+- (void)stateChanged:(NSNotification *)notification {
+
     dispatch_async(
         dispatch_get_main_queue(),
         ^{
@@ -507,8 +436,8 @@ SleepControlCenterStateChangedNotification =
 
 #pragma mark - Dealloc
 
-- (void)dealloc
-{
+- (void)dealloc {
+
     [[NSNotificationCenter defaultCenter]
         removeObserver:self];
 }
@@ -516,11 +445,9 @@ SleepControlCenterStateChangedNotification =
 @end
 
 
+#pragma mark - Control Center Module
 
-#pragma mark - SleepModeModule
-
-@interface SleepModeModule : NSObject
-{
+@interface SleepModeModule : NSObject {
     SleepModeContentViewController *_contentViewController;
 }
 @end
@@ -531,13 +458,7 @@ SleepControlCenterStateChangedNotification =
 
 #pragma mark - Runtime protocol registration
 
-+ (void)load
-{
-    /*
-     * Do not create a fake CCUIContentModule protocol.
-     *
-     * Control Center provides the real protocol at runtime.
-     */
++ (void)load {
 
     Protocol *protocol =
         objc_getProtocol("CCUIContentModule");
@@ -551,46 +472,45 @@ SleepControlCenterStateChangedNotification =
 
 #pragma mark - Init
 
-- (instancetype)init
-{
-    self =
-        [super init];
+- (instancetype)init {
+
+    self = [super init];
 
     if (self) {
 
         _contentViewController =
             [[SleepModeContentViewController alloc]
                 initWithNibName:nil
-                       bundle:nil];
+                         bundle:nil];
     }
 
     return self;
 }
 
 
-#pragma mark - CCUIContentModule
+#pragma mark - Content View Controller
 
-- (UIViewController *)contentViewController
-{
+- (UIViewController *)contentViewController {
+
     return _contentViewController;
 }
 
 
-#pragma mark - Optional
+#pragma mark - Own platter
 
-- (BOOL)providesOwnPlatter
-{
+- (BOOL)providesOwnPlatter {
+
     return YES;
 }
 
 
-- (void)setContentModuleContext:(id)context
-{
+#pragma mark - Module context
+
+- (void)setContentModuleContext:(id)context {
+
     /*
-     * Control Center may provide a context.
-     * SleepMode does not currently need it.
+     * Không cần dùng context ở phiên bản hiện tại.
      */
 }
-
 
 @end

@@ -1,43 +1,75 @@
 #import <Foundation/Foundation.h>
 #import <UIKit/UIKit.h>
-#import <objc/message.h>
 
 #import "SleepManager.h"
 
-#pragma mark - Private SpringBoard Classes
-
-@interface SBIdleTimerGlobalCoordinator : NSObject
-@end
-
-@interface SBBacklightController : NSObject
-@end
-
-#pragma mark - Activity State
-
-static BOOL gSleepModeInitialized = NO;
+#pragma mark - Activity
 
 static void SleepModeRegisterActivity(void)
 {
-    if (!gSleepModeInitialized) {
-        return;
-    }
-
     [[SleepManager sharedInstance]
         userDidInteract];
 }
 
-#pragma mark - SpringBoard
+#pragma mark - Lock State Notifications
+
+static void SleepModeRegisterLockNotifications(void)
+{
+    NSNotificationCenter *center =
+        [NSNotificationCenter defaultCenter];
+
+    /*
+     * Lock notification.
+     */
+    [center addObserverForName:
+                @"SBLockScreenManagerDidLockNotification"
+
+            object:nil
+
+             queue:[NSOperationQueue mainQueue]
+
+        usingBlock:
+        ^(NSNotification *notification) {
+
+            NSLog(
+                @"[SleepMode] System lock detected"
+            );
+
+            [[SleepManager sharedInstance]
+                deviceDidLock];
+        }];
+
+    /*
+     * Unlock notification.
+     */
+    [center addObserverForName:
+                @"SBLockScreenManagerDidUnlockNotification"
+
+            object:nil
+
+             queue:[NSOperationQueue mainQueue]
+
+        usingBlock:
+        ^(NSNotification *notification) {
+
+            NSLog(
+                @"[SleepMode] System unlock detected"
+            );
+
+            [[SleepManager sharedInstance]
+                deviceDidUnlock];
+        }];
+}
+
+#pragma mark - SpringBoard Group
 
 %group SpringBoardGroup
 
 /*
- * Đây là điểm rất gần với cơ chế Auto-Lock của SpringBoard.
+ * SpringBoard idle timer.
  *
- * Không tự tạo gesture recognizer.
- * Không inject vào app.
- *
- * Mỗi khi SpringBoard xử lý reset idle timer,
- * SleepMode reset bộ đếm của chính nó.
+ * Đây vẫn được giữ lại vì nó là một trong
+ * các activity signal gần với Auto-Lock.
  */
 %hook SBIdleTimerGlobalCoordinator
 
@@ -52,10 +84,7 @@ static void SleepModeRegisterActivity(void)
 
 
 /*
- * SpringBoard là UIApplication của hệ thống.
- *
- * sendEvent: được giữ làm lớp bổ sung.
- * Không phụ thuộc vào nó một mình.
+ * SpringBoard lifecycle.
  */
 %hook SpringBoard
 
@@ -63,57 +92,13 @@ static void SleepModeRegisterActivity(void)
 {
     %orig;
 
-    NSLog(@"[SleepMode] SpringBoard started");
+    NSLog(
+        @"[SleepMode] SpringBoard started"
+    );
 
     [SleepManager sharedInstance];
-}
 
-/*
- * Một số event hệ thống đi qua UIApplication của SpringBoard.
- * Nếu event là touch/press thì reset timer.
- */
-- (void)sendEvent:(UIEvent *)event
-{
-    if (event != nil) {
-
-        UIEventType type = event.type;
-
-        if (type == UIEventTypeTouches ||
-            type == UIEventTypePresses) {
-
-            NSSet *touches =
-                [event allTouches];
-
-            if (touches.count > 0) {
-                SleepModeRegisterActivity();
-            }
-        }
-    }
-
-    %orig;
-}
-
-%end
-
-#pragma mark - SpringBoard Touch / Gesture Activity
-
-/*
- * SpringBoard có rất nhiều gesture recognizer.
- *
- * Các callback này không dùng để điều khiển gesture.
- * Chỉ dùng làm tín hiệu activity.
- */
-%hook UIGestureRecognizer
-
-- (BOOL)gestureRecognizerShouldBegin:(UIGestureRecognizer *)gestureRecognizer
-{
-    BOOL result = %orig;
-
-    if (result) {
-        SleepModeRegisterActivity();
-    }
-
-    return result;
+    SleepModeRegisterLockNotifications();
 }
 
 %end
@@ -128,13 +113,24 @@ static void SleepModeRegisterActivity(void)
         [[NSBundle mainBundle]
             bundleIdentifier];
 
+    /*
+     * Chỉ chạy trong SpringBoard.
+     *
+     * Không inject vào:
+     *
+     * Safari
+     * YouTube
+     * Facebook
+     * game
+     * v.v.
+     */
     if ([bundleID
             isEqualToString:
                 @"com.apple.springboard"]) {
 
-        NSLog(@"[SleepMode] Injected into SpringBoard");
-
-        gSleepModeInitialized = YES;
+        NSLog(
+            @"[SleepMode] Injected into SpringBoard"
+        );
 
         %init(SpringBoardGroup);
     }

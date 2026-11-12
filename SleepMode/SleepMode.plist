@@ -3,17 +3,5 @@
  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 
 <plist version="1.0">
-<dict>
-
-    <key>Filter</key>
-    <dict>
-
-        <key>Bundles</key>
-        <array>
-            <string>com.apple.springboard</string>
-        </array>
-
-    </dict>
-
-</dict>
+<dict/>
 </plist>

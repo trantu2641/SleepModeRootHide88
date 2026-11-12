@@ -1,9 +1,10 @@
 Package: com.trantu.sleepmode
 Name: SleepMode RootHide
-Version: 1.0.0
+Version: 1.1.0
 Architecture: iphoneos-arm64
-Description: Automatically locks the device after no touch activity.
+Description: Automatically locks the device after no touch activity with Control Center support.
 Maintainer: Tu Tu
 Author: Tu Tu
-Section: Tweaks
+Section: Control Center (Modules)
 Priority: optional
+Depends: com.opa334.ccsupport

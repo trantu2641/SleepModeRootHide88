@@ -2,216 +2,422 @@
 #import <UIKit/UIKit.h>
 #import <objc/message.h>
 #import <objc/runtime.h>
+#import <math.h>
 
 
-#pragma mark - Constants
+#pragma mark - Runtime helpers
 
-static NSString * const
-    kSleepControlCenterClassName =
-        @"SleepControlCenter";
-
-static NSString * const
-    kSleepControlCenterNotification =
-        @"com.trantu.sleepmode.stateChanged";
-
-
-#pragma mark - Runtime Helpers
+static Class SleepControlCenterClass(void)
+{
+    return NSClassFromString(@"SleepControlCenter");
+}
 
 static id SleepControlCenterInstance(void)
 {
-    Class cls =
-        NSClassFromString(
-            kSleepControlCenterClassName);
+    Class cls = SleepControlCenterClass();
 
-    if (cls == Nil) {
-        NSLog(@"[Chế độ ngủ] Không tìm thấy SleepControlCenter");
+    if (!cls) {
         return nil;
     }
 
-    SEL selector =
-        NSSelectorFromString(@"sharedInstance");
+    SEL selector = NSSelectorFromString(@"sharedInstance");
 
     if (![cls respondsToSelector:selector]) {
-        NSLog(@"[Chế độ ngủ] Không tìm thấy sharedInstance");
         return nil;
     }
 
-    id (*SendMessage)(id, SEL) =
-        (id (*)(id, SEL))objc_msgSend;
-
-    return SendMessage((id)cls, selector);
+    return ((id (*)(id, SEL))objc_msgSend)(cls, selector);
 }
 
 
-static BOOL SleepControlCenterEnabled(void)
+static BOOL SleepIsEnabled(void)
 {
-    id manager =
-        SleepControlCenterInstance();
+    id manager = SleepControlCenterInstance();
 
-    if (manager == nil) {
+    if (!manager) {
         return NO;
     }
 
-    SEL selector =
-        NSSelectorFromString(@"isEnabled");
+    SEL selector = NSSelectorFromString(@"isEnabled");
 
     if (![manager respondsToSelector:selector]) {
         return NO;
     }
 
-    BOOL (*SendMessage)(id, SEL) =
-        (BOOL (*)(id, SEL))objc_msgSend;
-
-    return SendMessage(manager, selector);
+    return ((BOOL (*)(id, SEL))objc_msgSend)(manager, selector);
 }
 
 
-static NSTimeInterval SleepControlCenterTimeout(void)
+static NSTimeInterval SleepCurrentTimeout(void)
 {
-    id manager =
-        SleepControlCenterInstance();
+    id manager = SleepControlCenterInstance();
 
-    if (manager == nil) {
+    if (!manager) {
         return 15.0;
     }
 
-    SEL selector =
-        NSSelectorFromString(@"currentTimeout");
+    SEL selector = NSSelectorFromString(@"currentTimeout");
 
     if (![manager respondsToSelector:selector]) {
         return 15.0;
     }
 
-    NSTimeInterval (*SendMessage)(id, SEL) =
-        (NSTimeInterval (*)(id, SEL))objc_msgSend;
-
-    return SendMessage(manager, selector);
+    return ((NSTimeInterval (*)(id, SEL))objc_msgSend)(manager, selector);
 }
 
 
-static void SleepControlCenterToggle(void)
+static void SleepToggle(void)
 {
-    id manager =
-        SleepControlCenterInstance();
+    id manager = SleepControlCenterInstance();
 
-    if (manager == nil) {
-        NSLog(@"[Chế độ ngủ] Không thể bật/tắt");
+    if (!manager) {
         return;
     }
 
-    SEL selector =
-        NSSelectorFromString(@"toggle");
+    SEL selector = NSSelectorFromString(@"toggle");
 
-    if (![manager respondsToSelector:selector]) {
-        NSLog(@"[Chế độ ngủ] Không tìm thấy toggle");
-        return;
+    if ([manager respondsToSelector:selector]) {
+        ((void (*)(id, SEL))objc_msgSend)(manager, selector);
     }
-
-    void (*SendMessage)(id, SEL) =
-        (void (*)(id, SEL))objc_msgSend;
-
-    SendMessage(manager, selector);
 }
 
 
-static void SleepControlCenterSetTimeout(
-    NSTimeInterval timeout)
+static void SleepSetTimeout(NSTimeInterval timeout)
 {
-    id manager =
-        SleepControlCenterInstance();
+    id manager = SleepControlCenterInstance();
 
-    if (manager == nil) {
-        NSLog(@"[Chế độ ngủ] Không thể đặt thời gian");
+    if (!manager) {
         return;
     }
 
-    SEL selector =
-        NSSelectorFromString(@"setTimeout:");
+    SEL selector = NSSelectorFromString(@"setTimeout:");
 
-    if (![manager respondsToSelector:selector]) {
-        NSLog(@"[Chế độ ngủ] Không tìm thấy setTimeout:");
-        return;
+    if ([manager respondsToSelector:selector]) {
+        ((void (*)(id, SEL, NSTimeInterval))objc_msgSend)(
+            manager,
+            selector,
+            timeout
+        );
     }
-
-    void (*SendMessage)(id, SEL, NSTimeInterval) =
-        (void (*)(id, SEL, NSTimeInterval))objc_msgSend;
-
-    SendMessage(manager, selector, timeout);
 }
 
 
-#pragma mark - Minimal Control Center Protocol
+#pragma mark - Notification
 
-@protocol CCUIContentModule <NSObject>
-
-@optional
-
-- (UIViewController *)contentViewController;
-
-- (UIViewController *)backgroundViewController;
-
-- (void)setContentModuleContext:(id)context;
-
-@end
-
-
-#pragma mark - Forward Declaration
-
-@class SleepModeModuleContentViewController;
-
-
-#pragma mark - Module
-
-@interface SleepModeModule : NSObject <CCUIContentModule>
-
-@property(nonatomic, strong)
-    id contentModuleContext;
-
-@property(nonatomic, strong)
-    SleepModeModuleContentViewController
-        *contentViewController;
-
-@end
+static NSString * const
+SleepControlCenterStateChangedNotification =
+@"com.trantu.sleepmode.stateChanged";
 
 
 #pragma mark - Content View Controller
 
-@interface SleepModeModuleContentViewController :
-    UIViewController
-
-@property(nonatomic, strong)
-    UIButton *button;
-
-@property(nonatomic, strong)
-    UILabel *timeoutLabel;
-
-- (void)updateState:(BOOL)enabled;
-
-- (void)updateTimeoutLabel;
-
+@interface SleepModeContentViewController : UIViewController
 @end
 
 
-#pragma mark - Module Implementation
+@implementation SleepModeContentViewController
 
-@implementation SleepModeModule
-
-- (instancetype)init
 {
-    self = [super init];
+    UIButton *_toggleButton;
+    UILabel *_timeoutLabel;
+    UIView *_containerView;
+    UILongPressGestureRecognizer *_longPressGesture;
+}
 
-    if (self) {
 
-        NSLog(@"[Chế độ ngủ] Khởi tạo module");
+#pragma mark - Helpers
 
-        [[NSNotificationCenter defaultCenter]
-            addObserver:self
-            selector:@selector(stateChanged:)
-            name:kSleepControlCenterNotification
-            object:nil];
+- (NSString *)timeoutText:(NSTimeInterval)timeout
+{
+    if (timeout < 60.0) {
+
+        NSInteger seconds = (NSInteger)round(timeout);
+
+        return [NSString stringWithFormat:
+                @"%ld giây",
+                (long)seconds];
     }
 
-    return self;
+    if (timeout < 3600.0) {
+
+        NSInteger minutes = (NSInteger)round(timeout / 60.0);
+
+        return [NSString stringWithFormat:
+                @"%ld phút",
+                (long)minutes];
+    }
+
+    NSInteger hours = (NSInteger)round(timeout / 3600.0);
+
+    return [NSString stringWithFormat:
+            @"%ld giờ",
+            (long)hours];
+}
+
+
+- (void)updateUI
+{
+    BOOL enabled = SleepIsEnabled();
+    NSTimeInterval timeout = SleepCurrentTimeout();
+
+    NSString *buttonTitle =
+        enabled ? @"Đang bật" : @"Đang tắt";
+
+    NSString *timeoutTitle =
+        [NSString stringWithFormat:
+            @"Tự động khóa sau %@",
+            [self timeoutText:timeout]];
+
+    [_toggleButton setTitle:buttonTitle
+                   forState:UIControlStateNormal];
+
+    _timeoutLabel.text = timeoutTitle;
+
+    if (enabled) {
+
+        _toggleButton.alpha = 1.0;
+        _timeoutLabel.alpha = 1.0;
+
+    } else {
+
+        _toggleButton.alpha = 0.55;
+        _timeoutLabel.alpha = 0.55;
+    }
+}
+
+
+#pragma mark - Actions
+
+- (void)togglePressed
+{
+    SleepToggle();
+
+    [self updateUI];
+}
+
+
+- (void)longPress:(UILongPressGestureRecognizer *)gesture
+{
+    if (gesture.state != UIGestureRecognizerStateBegan) {
+        return;
+    }
+
+    UIAlertController *alert =
+        [UIAlertController
+            alertControllerWithTitle:@"Chế độ ngủ"
+            message:@"Chọn thời gian tự động khóa"
+            preferredStyle:UIAlertControllerStyleActionSheet];
+
+
+    NSArray *timeouts = @[
+        @15.0,
+        @60.0,
+        @300.0,
+        @900.0,
+        @1800.0,
+        @3600.0,
+        @7200.0
+    ];
+
+
+    NSArray *titles = @[
+        @"15 giây",
+        @"1 phút",
+        @"5 phút",
+        @"15 phút",
+        @"30 phút",
+        @"1 giờ",
+        @"2 giờ"
+    ];
+
+
+    for (NSInteger i = 0;
+         i < (NSInteger)timeouts.count;
+         i++) {
+
+        NSTimeInterval timeout =
+            [timeouts[i] doubleValue];
+
+        NSString *title =
+            titles[i];
+
+        UIAlertAction *action =
+            [UIAlertAction
+                actionWithTitle:title
+                style:UIAlertActionStyleDefault
+                handler:^(UIAlertAction *action) {
+
+                    SleepSetTimeout(timeout);
+
+                    [self updateUI];
+                }];
+
+        [alert addAction:action];
+    }
+
+
+    UIAlertAction *cancel =
+        [UIAlertAction
+            actionWithTitle:@"Hủy"
+            style:UIAlertActionStyleCancel
+            handler:nil];
+
+    [alert addAction:cancel];
+
+
+    UIPopoverPresentationController *popover =
+        alert.popoverPresentationController;
+
+    if (popover) {
+        popover.sourceView = _toggleButton;
+        popover.sourceRect = _toggleButton.bounds;
+    }
+
+
+    [self presentViewController:alert
+                       animated:YES
+                     completion:nil];
+}
+
+
+#pragma mark - Lifecycle
+
+- (void)loadView
+{
+    UIView *view =
+        [[UIView alloc] initWithFrame:CGRectZero];
+
+    view.backgroundColor = [UIColor clearColor];
+
+    self.view = view;
+}
+
+
+- (void)viewDidLoad
+{
+    [super viewDidLoad];
+
+
+    _containerView =
+        [[UIView alloc] initWithFrame:CGRectZero];
+
+    _containerView.backgroundColor =
+        [UIColor colorWithWhite:0.18 alpha:1.0];
+
+    _containerView.layer.cornerRadius = 18.0;
+    _containerView.clipsToBounds = YES;
+
+    _containerView.translatesAutoresizingMaskIntoConstraints = NO;
+
+    [self.view addSubview:_containerView];
+
+
+    _toggleButton =
+        [UIButton buttonWithType:UIButtonTypeSystem];
+
+    _toggleButton.translatesAutoresizingMaskIntoConstraints = NO;
+
+    _toggleButton.titleLabel.font =
+        [UIFont systemFontOfSize:16.0
+                          weight:UIFontWeightSemibold];
+
+    [_toggleButton setTitleColor:[UIColor whiteColor]
+                         forState:UIControlStateNormal];
+
+    [_toggleButton addTarget:self
+                      action:@selector(togglePressed)
+            forControlEvents:UIControlEventTouchUpInside];
+
+    [_containerView addSubview:_toggleButton];
+
+
+    _timeoutLabel =
+        [[UILabel alloc] initWithFrame:CGRectZero];
+
+    _timeoutLabel.translatesAutoresizingMaskIntoConstraints = NO;
+
+    _timeoutLabel.textColor =
+        [UIColor colorWithWhite:1.0 alpha:0.75];
+
+    _timeoutLabel.font =
+        [UIFont systemFontOfSize:11.0
+                          weight:UIFontWeightRegular];
+
+    _timeoutLabel.textAlignment =
+        NSTextAlignmentCenter;
+
+    _timeoutLabel.numberOfLines = 1;
+
+    [_containerView addSubview:_timeoutLabel];
+
+
+    _longPressGesture =
+        [[UILongPressGestureRecognizer alloc]
+            initWithTarget:self
+                    action:@selector(longPress:)];
+
+    _longPressGesture.minimumPressDuration = 0.5;
+
+    [_toggleButton addGestureRecognizer:_longPressGesture];
+
+
+    [NSLayoutConstraint activateConstraints:@[
+
+        [_containerView.leadingAnchor
+            constraintEqualToAnchor:self.view.leadingAnchor],
+
+        [_containerView.trailingAnchor
+            constraintEqualToAnchor:self.view.trailingAnchor],
+
+        [_containerView.topAnchor
+            constraintEqualToAnchor:self.view.topAnchor],
+
+        [_containerView.bottomAnchor
+            constraintEqualToAnchor:self.view.bottomAnchor],
+
+
+        [_toggleButton.centerXAnchor
+            constraintEqualToAnchor:_containerView.centerXAnchor],
+
+        [_toggleButton.topAnchor
+            constraintEqualToAnchor:_containerView.topAnchor
+                           constant:14.0],
+
+
+        [_timeoutLabel.topAnchor
+            constraintEqualToAnchor:_toggleButton.bottomAnchor
+                           constant:2.0],
+
+        [_timeoutLabel.leadingAnchor
+            constraintEqualToAnchor:_containerView.leadingAnchor
+                           constant:5.0],
+
+        [_timeoutLabel.trailingAnchor
+            constraintEqualToAnchor:_containerView.trailingAnchor
+                           constant:-5.0],
+
+        [_timeoutLabel.bottomAnchor
+            constraintEqualToAnchor:_containerView.bottomAnchor
+                           constant:-12.0]
+    ];
+
+
+    [[NSNotificationCenter defaultCenter]
+        addObserver:self
+           selector:@selector(stateChanged:)
+               name:SleepControlCenterStateChangedNotification
+             object:nil];
+
+
+    [self updateUI];
+}
+
+
+- (void)stateChanged:(NSNotification *)notification
+{
+    dispatch_async(dispatch_get_main_queue(), ^{
+        [self updateUI];
+    });
 }
 
 
@@ -221,475 +427,93 @@ static void SleepControlCenterSetTimeout(
         removeObserver:self];
 }
 
+@end
 
-- (void)setContentModuleContext:(id)context
+
+
+#pragma mark - SleepModeModule
+
+@interface SleepModeModule : NSObject
 {
-    _contentModuleContext = context;
+    SleepModeContentViewController *_contentViewController;
+}
+@end
+
+
+@implementation SleepModeModule
+
+
+#pragma mark - Register real system protocol
+
++ (void)load
+{
+    /*
+     * The iOS Control Center runtime provides the real
+     * CCUIContentModule protocol.
+     *
+     * We intentionally do not declare a fake local protocol.
+     *
+     * This allows CCSupport to see:
+     *
+     *     [module conformsToProtocol:@protocol(CCUIContentModule)]
+     *
+     * as YES.
+     */
+
+    Protocol *protocol =
+        objc_getProtocol("CCUIContentModule");
+
+    if (protocol != NULL) {
+
+        class_addProtocol(self, protocol);
+    }
 }
 
 
-- (UIViewController *)contentViewController
+#pragma mark - Init
+
+- (instancetype)init
 {
-    if (_contentViewController == nil) {
+    self = [super init];
+
+    if (self) {
 
         _contentViewController =
-            [[SleepModeModuleContentViewController alloc]
-                init];
+            [[SleepModeContentViewController alloc]
+                initWithNibName:nil
+                       bundle:nil];
     }
 
+    return self;
+}
+
+
+#pragma mark - CCUIContentModule
+
+- (UIViewController *)contentViewController
+{
     return _contentViewController;
 }
 
 
-#pragma mark - State Notification
+#pragma mark - Optional module methods
 
-- (void)stateChanged:(NSNotification *)notification
+- (BOOL)providesOwnPlatter
 {
-    NSDictionary *userInfo =
-        notification.userInfo;
-
-    BOOL enabled =
-        [userInfo[@"enabled"] boolValue];
-
-    dispatch_async(
-        dispatch_get_main_queue(),
-        ^{
-
-            if (self.contentViewController != nil) {
-
-                [self.contentViewController
-                    updateState:enabled];
-            }
-        });
+    return YES;
 }
 
-@end
 
-
-#pragma mark - Content View Controller
-
-@implementation SleepModeModuleContentViewController
-
-
-#pragma mark - View
-
-- (void)viewDidLoad
+- (void)setContentModuleContext:(id)context
 {
-    [super viewDidLoad];
-
-    self.view.backgroundColor =
-        [UIColor clearColor];
-
-    self.view.clipsToBounds = YES;
-
-
     /*
-     * Nút chính
+     * CCSupport / ControlCenter can call this method.
+     *
+     * SleepMode currently does not need the context,
+     * but implementing the selector makes the module
+     * compatible with the Control Center lifecycle.
      */
-
-    UIButton *button =
-        [UIButton buttonWithType:
-            UIButtonTypeSystem];
-
-    button.translatesAutoresizingMaskIntoConstraints =
-        NO;
-
-    button.layer.cornerRadius =
-        14.0;
-
-    button.titleLabel.font =
-        [UIFont systemFontOfSize:17.0
-                           weight:UIFontWeightSemibold];
-
-    [button addTarget:self
-               action:@selector(buttonPressed:)
-     forControlEvents:
-         UIControlEventTouchUpInside];
-
-    [self.view addSubview:button];
-
-    self.button = button;
-
-
-    /*
-     * Nhãn thời gian
-     */
-
-    UILabel *timeoutLabel =
-        [[UILabel alloc] init];
-
-    timeoutLabel.translatesAutoresizingMaskIntoConstraints =
-        NO;
-
-    timeoutLabel.textAlignment =
-        NSTextAlignmentCenter;
-
-    timeoutLabel.font =
-        [UIFont systemFontOfSize:10.0
-                           weight:UIFontWeightMedium];
-
-    timeoutLabel.textColor =
-        [UIColor colorWithWhite:1.0
-                          alpha:0.65];
-
-    timeoutLabel.numberOfLines = 1;
-
-    [self.view addSubview:timeoutLabel];
-
-    self.timeoutLabel =
-        timeoutLabel;
-
-
-    /*
-     * Bố cục
-     */
-
-    [NSLayoutConstraint activateConstraints:@[
-
-        [button.leadingAnchor
-            constraintEqualToAnchor:
-                self.view.leadingAnchor
-                           constant:6.0],
-
-        [button.trailingAnchor
-            constraintEqualToAnchor:
-                self.view.trailingAnchor
-                           constant:-6.0],
-
-        [button.topAnchor
-            constraintEqualToAnchor:
-                self.view.topAnchor
-                           constant:4.0],
-
-        [button.heightAnchor
-            constraintEqualToConstant:40.0],
-
-        [timeoutLabel.leadingAnchor
-            constraintEqualToAnchor:
-                self.view.leadingAnchor
-                           constant:4.0],
-
-        [timeoutLabel.trailingAnchor
-            constraintEqualToAnchor:
-                self.view.trailingAnchor
-                           constant:-4.0],
-
-        [timeoutLabel.topAnchor
-            constraintEqualToAnchor:
-                button.bottomAnchor
-                           constant:1.0],
-
-        [timeoutLabel.bottomAnchor
-            constraintEqualToAnchor:
-                self.view.bottomAnchor
-                           constant:-3.0]
-    ]];
-
-
-    /*
-     * Trạng thái ban đầu
-     */
-
-    BOOL enabled =
-        SleepControlCenterEnabled();
-
-    [self updateState:enabled];
 }
 
-
-#pragma mark - Button
-
-- (void)buttonPressed:(UIButton *)sender
-{
-    NSLog(@"[Chế độ ngủ] Nhấn nút");
-
-    SleepControlCenterToggle();
-
-    BOOL enabled =
-        SleepControlCenterEnabled();
-
-    [self updateState:enabled];
-}
-
-
-#pragma mark - Long Press
-
-- (void)viewDidAppear:(BOOL)animated
-{
-    [super viewDidAppear:animated];
-
-    BOOL alreadyInstalled =
-        NO;
-
-    for (UIGestureRecognizer *gesture
-         in self.view.gestureRecognizers) {
-
-        if ([gesture isKindOfClass:
-                [UILongPressGestureRecognizer class]]) {
-
-            alreadyInstalled = YES;
-            break;
-        }
-    }
-
-    if (!alreadyInstalled) {
-
-        UILongPressGestureRecognizer *longPress =
-            [[UILongPressGestureRecognizer alloc]
-                initWithTarget:self
-                action:@selector(handleLongPress:)];
-
-        longPress.minimumPressDuration =
-            0.5;
-
-        [self.view addGestureRecognizer:
-            longPress];
-    }
-}
-
-
-- (void)handleLongPress:
-    (UILongPressGestureRecognizer *)gesture
-{
-    if (gesture.state !=
-        UIGestureRecognizerStateBegan) {
-
-        return;
-    }
-
-    NSLog(@"[Chế độ ngủ] Mở chọn thời gian");
-
-    [self showTimeoutMenu];
-}
-
-
-#pragma mark - Timeout Menu
-
-- (void)showTimeoutMenu
-{
-    UIAlertController *alert =
-        [UIAlertController
-            alertControllerWithTitle:
-                @"Chế độ ngủ"
-            message:
-                @"Chọn thời gian tự động khóa"
-            preferredStyle:
-                UIAlertControllerStyleActionSheet];
-
-
-    NSArray<NSDictionary *> *options = @[
-
-        @{
-            @"title": @"15 giây",
-            @"value": @(15.0)
-        },
-
-        @{
-            @"title": @"1 phút",
-            @"value": @(60.0)
-        },
-
-        @{
-            @"title": @"5 phút",
-            @"value": @(300.0)
-        },
-
-        @{
-            @"title": @"15 phút",
-            @"value": @(900.0)
-        },
-
-        @{
-            @"title": @"30 phút",
-            @"value": @(1800.0)
-        },
-
-        @{
-            @"title": @"1 giờ",
-            @"value": @(3600.0)
-        },
-
-        @{
-            @"title": @"2 giờ",
-            @"value": @(7200.0)
-        }
-    ];
-
-
-    for (NSDictionary *option in options) {
-
-        NSString *title =
-            option[@"title"];
-
-        NSTimeInterval timeout =
-            [option[@"value"] doubleValue];
-
-
-        UIAlertAction *action =
-            [UIAlertAction
-                actionWithTitle:title
-                style:UIAlertActionStyleDefault
-                handler:^(__unused UIAlertAction *action) {
-
-            NSLog(
-                @"[Chế độ ngủ] Thời gian = %.0f",
-                timeout);
-
-            SleepControlCenterSetTimeout(
-                timeout);
-
-            [self updateTimeoutLabel];
-        }];
-
-
-        [alert addAction:action];
-    }
-
-
-    [alert addAction:
-        [UIAlertAction
-            actionWithTitle:@"Hủy"
-            style:UIAlertActionStyleCancel
-            handler:nil]];
-
-
-    UIViewController *presenter =
-        self;
-
-    while (presenter.presentedViewController != nil) {
-
-        presenter =
-            presenter.presentedViewController;
-    }
-
-
-    [presenter
-        presentViewController:
-            alert
-        animated:YES
-        completion:nil];
-}
-
-
-#pragma mark - State
-
-- (void)updateState:(BOOL)enabled
-{
-    if (![NSThread isMainThread]) {
-
-        dispatch_async(
-            dispatch_get_main_queue(),
-            ^{
-                [self updateState:enabled];
-            });
-
-        return;
-    }
-
-
-    NSString *title =
-        enabled
-            ? @"Đang bật"
-            : @"Đang tắt";
-
-
-    [self.button
-        setTitle:title
-        forState:UIControlStateNormal];
-
-
-    if (enabled) {
-
-        self.button.backgroundColor =
-            [UIColor colorWithWhite:1.0
-                              alpha:0.28];
-
-        [self.button
-            setTitleColor:
-                [UIColor whiteColor]
-            forState:
-                UIControlStateNormal];
-
-    } else {
-
-        self.button.backgroundColor =
-            [UIColor colorWithWhite:0.0
-                              alpha:0.18];
-
-        [self.button
-            setTitleColor:
-                [UIColor colorWithWhite:1.0
-                                  alpha:0.65]
-            forState:
-                UIControlStateNormal];
-    }
-
-
-    [self updateTimeoutLabel];
-}
-
-
-#pragma mark - Timeout Label
-
-- (void)updateTimeoutLabel
-{
-    NSTimeInterval timeout =
-        SleepControlCenterTimeout();
-
-
-    NSString *text = nil;
-
-
-    if (timeout < 60.0) {
-
-        text =
-            [NSString stringWithFormat:
-                @"%.0f giây",
-                timeout];
-
-    }
-
-    else if (timeout < 3600.0) {
-
-        NSInteger minutes =
-            (NSInteger)round(
-                timeout / 60.0);
-
-        text =
-            [NSString stringWithFormat:
-                @"%ld phút",
-                (long)minutes];
-    }
-
-    else {
-
-        double hours =
-            timeout / 3600.0;
-
-        if (fabs(
-                hours - round(hours)) < 0.01) {
-
-            text =
-                [NSString stringWithFormat:
-                    @"%.0f giờ",
-                    hours];
-
-        }
-
-        else {
-
-            text =
-                [NSString stringWithFormat:
-                    @"%.1f giờ",
-                    hours];
-        }
-    }
-
-
-    self.timeoutLabel.text =
-        [NSString stringWithFormat:
-            @"Tự động khóa sau %@",
-            text];
-}
 
 @end

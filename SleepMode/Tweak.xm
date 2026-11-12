@@ -5,8 +5,6 @@
 #import "SleepControlCenter.h"
 
 
-#pragma mark - SleepMode Group
-
 %group SleepModeGroup
 
 
@@ -14,48 +12,31 @@
 
 %hook SpringBoard
 
-/*
- * SpringBoard khởi động
- */
 - (void)applicationDidFinishLaunching:(id)application
 {
     %orig;
 
     NSLog(@"[SleepMode] SpringBoard started");
 
-    /*
-     * Khởi tạo SleepManager.
-     */
     [SleepManager sharedInstance];
-
-    /*
-     * Khởi tạo module trung tâm điều khiển.
-     */
     [SleepControlCenter sharedInstance];
 
     NSLog(@"[SleepMode] Control Center initialized");
 }
 
 
-/*
- * ============================================================
- * TOUCH DETECTION
- * ============================================================
- *
- * Bắt touch ở tầng SpringBoard.
- *
- * SleepMode chỉ inject vào SpringBoard nên:
- *
- * - Home Screen
- * - App Library
- * - Control Center
- * - các UI của SpringBoard
- *
- * đều có thể được xử lý mà không cần inject
- * SleepMode vào từng app người dùng.
- */
 - (void)sendEvent:(UIEvent *)event
 {
+    /*
+     * Bắt touch ở cấp SpringBoard.
+     *
+     * Vì tweak chỉ inject vào SpringBoard nên:
+     * - Home Screen vẫn nhận được
+     * - Control Center vẫn nhận được
+     * - Lock Screen không chạy timer vì SleepManager đã chặn
+     * - Không cần inject vào từng app
+     */
+
     if (event != nil &&
         event.type == UIEventTypeTouches) {
 
@@ -82,51 +63,35 @@
                     phase == UITouchPhaseStationary) {
 
                     realTouch = YES;
-
                     break;
                 }
             }
 
             if (realTouch) {
 
-                /*
-                 * Có hoạt động cảm ứng.
-                 *
-                 * Reset timer của SleepManager.
-                 */
+                NSLog(@"[SleepMode] User interaction detected");
+
                 [[SleepManager sharedInstance]
                     userDidInteract];
             }
         }
     }
 
-    /*
-     * Luôn để SpringBoard xử lý event bình thường.
-     */
     %orig;
 }
 
 %end
 
 
-#pragma mark - SpringBoard Idle Timer
+#pragma mark - System Idle Timer
 
-/*
- * Đây là tín hiệu bổ sung từ cơ chế idle timer
- * của SpringBoard.
- *
- * Khi hệ thống reset idle timer,
- * SleepMode cũng reset bộ đếm.
- */
 %hook SBIdleTimerGlobalCoordinator
 
 - (void)resetIdleTimer
 {
     %orig;
 
-    NSLog(
-        @"[SleepMode] System idle timer reset"
-    );
+    NSLog(@"[SleepMode] System idle timer reset");
 
     [[SleepManager sharedInstance]
         userDidInteract];
@@ -137,73 +102,46 @@
 
 #pragma mark - Lock / Unlock
 
-/*
- * ============================================================
- * SBLockScreenManager
- * ============================================================
- *
- * iOS 16.x:
- *
- * Lock:
- *     lockFromSource:
- *
- * Unlock:
- *     unlockUIFromSource:withOptions:
- *
- * Khi thiết bị bị khóa:
- *
- *     SleepManager -> deviceDidLock
- *
- * Khi mở khóa:
- *
- *     SleepManager -> deviceDidUnlock
- *
- * deviceDidLock:
- *     dừng timer hoàn toàn
- *
- * deviceDidUnlock:
- *     reset thời gian về 0
- *     khởi động timer mới
- */
-
 %hook SBLockScreenManager
 
-
 /*
- * Thiết bị chuyển sang trạng thái khóa.
+ * Được gọi khi hệ thống thực hiện lock.
  */
 - (void)lockFromSource:(int)source
 {
-    NSLog(
-        @"[SleepMode] lockFromSource: %d",
-        source
-    );
+    NSLog(@"[SleepMode] lockFromSource: %d",
+          source);
 
     %orig;
 
+    /*
+     * Đảm bảo timer bị dừng ngay khi
+     * thiết bị chuyển sang trạng thái khóa.
+     */
     [[SleepManager sharedInstance]
         deviceDidLock];
 }
 
 
 /*
- * Thiết bị được mở khóa.
+ * Được gọi khi UI unlock hoàn tất.
  *
- * Selector quan trọng trên iOS 16.x:
- *
- * unlockUIFromSource:withOptions:
+ * Đây là hook đã test và hoạt động tốt
+ * với trạng thái hiện tại của tweak.
  */
 - (void)unlockUIFromSource:(int)source
                withOptions:(id)options
 {
-    NSLog(
-        @"[SleepMode] unlockUIFromSource:withOptions:"
-    );
+    NSLog(@"[SleepMode] unlockUIFromSource:withOptions:");
 
     %orig;
 
     /*
-     * Bắt đầu chu kỳ SleepMode mới.
+     * Sau khi unlock:
+     *
+     * - timer bắt đầu lại
+     * - thời gian được tính từ 0
+     * - không lấy thời gian trước khi khóa
      */
     [[SleepManager sharedInstance]
         deviceDidUnlock];
@@ -221,44 +159,48 @@
             bundleIdentifier];
 
     /*
-     * ========================================================
-     * CHỈ INJECT SPRINGBOARD
-     * ========================================================
+     * Chỉ chạy trong SpringBoard.
      *
      * Không inject vào:
-     *
      * - Safari
      * - Facebook
-     * - YouTube
      * - Game
-     * - các app người dùng
-     *
-     * SleepMode hoạt động tập trung tại SpringBoard.
+     * - Settings
+     * - app người dùng
      */
     if ([bundleID
             isEqualToString:
                 @"com.apple.springboard"]) {
 
-        NSLog(
-            @"[SleepMode] Injected into SpringBoard"
-        );
+        NSLog(@"[SleepMode] Injected into SpringBoard");
 
+        /*
+         * Khởi tạo toàn bộ Logos group.
+         */
         %init(SleepModeGroup);
 
         /*
-         * Khởi tạo engine.
+         * Khởi tạo manager và Control Center.
          */
         [SleepManager sharedInstance];
 
-        /*
-         * Khởi tạo trung tâm điều khiển.
-         */
         [SleepControlCenter sharedInstance];
 
-        NSLog(
-            @"[SleepMode] Core + Control Center ready"
-        );
+        NSLog(@"[SleepMode] Core + Control Center ready");
 
         return;
     }
 }
+
+
+/*
+ * Đóng %group SleepModeGroup
+ *
+ * QUAN TRỌNG:
+ * Nếu thiếu %end này Logos sẽ báo:
+ *
+ * missing %end
+ * (%group opened at Tweak.xm:...)
+ *
+ */
+%end

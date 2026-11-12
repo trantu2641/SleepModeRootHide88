@@ -16,8 +16,6 @@ static NSString * const kSleepModeStateChangedNotification =
     @"com.trantu.sleepmode.stateChanged";
 
 
-#pragma mark - Content View Controller
-
 @interface SleepModeContentViewController : UIViewController
 
 @property(nonatomic, strong) UILabel *titleLabel;
@@ -35,6 +33,7 @@ static NSString * const kSleepModeStateChangedNotification =
 
     self.view.backgroundColor =
         [UIColor systemBackgroundColor];
+
 
     self.titleLabel =
         [[UILabel alloc] init];
@@ -122,10 +121,6 @@ static NSString * const kSleepModeStateChangedNotification =
     ]];
 
 
-    /*
-     * Nhấn giữ nút để chọn timeout.
-     */
-
     UILongPressGestureRecognizer *longPress =
         [[UILongPressGestureRecognizer alloc]
             initWithTarget:self
@@ -154,8 +149,6 @@ static NSString * const kSleepModeStateChangedNotification =
 }
 
 
-#pragma mark - State
-
 - (BOOL)isEnabled
 {
     return [[NSUserDefaults standardUserDefaults]
@@ -174,38 +167,6 @@ static NSString * const kSleepModeStateChangedNotification =
     }
 
     return timeout;
-}
-
-
-#pragma mark - UI
-
-- (void)updateUI
-{
-    BOOL enabled =
-        [self isEnabled];
-
-    NSTimeInterval timeout =
-        [self timeout];
-
-
-    if (enabled) {
-
-        [self.button setTitle:@"Đang bật"
-                     forState:UIControlStateNormal];
-
-        self.statusLabel.text =
-            [NSString stringWithFormat:
-                @"Tự khóa sau %@",
-                [self timeoutText:timeout]];
-
-    } else {
-
-        [self.button setTitle:@"Đang tắt"
-                     forState:UIControlStateNormal];
-
-        self.statusLabel.text =
-            @"Chạm để bật";
-    }
 }
 
 
@@ -240,7 +201,37 @@ static NSString * const kSleepModeStateChangedNotification =
 }
 
 
-#pragma mark - Toggle
+- (void)updateUI
+{
+    BOOL enabled =
+        [self isEnabled];
+
+    NSTimeInterval timeout =
+        [self timeout];
+
+
+    if (enabled) {
+
+        [self.button
+            setTitle:@"Đang bật"
+            forState:UIControlStateNormal];
+
+        self.statusLabel.text =
+            [NSString stringWithFormat:
+                @"Tự khóa sau %@",
+                [self timeoutText:timeout]];
+
+    } else {
+
+        [self.button
+            setTitle:@"Đang tắt"
+            forState:UIControlStateNormal];
+
+        self.statusLabel.text =
+            @"Chạm để bật";
+    }
+}
+
 
 - (void)togglePressed
 {
@@ -269,8 +260,6 @@ static NSString * const kSleepModeStateChangedNotification =
 }
 
 
-#pragma mark - Timeout
-
 - (void)longPressed:
     (UILongPressGestureRecognizer *)gesture
 {
@@ -293,8 +282,8 @@ static NSString * const kSleepModeStateChangedNotification =
 
     NSArray *items = @[
         @[@"15 giây", @15.0],
-        @[@"1 phút",  @60.0],
-        @[@"5 phút",  @300.0],
+        @[@"1 phút", @60.0],
+        @[@"5 phút", @300.0],
         @[@"15 phút", @900.0],
         @[@"30 phút", @1800.0],
         @[@"1 giờ", @3600.0],
@@ -355,8 +344,6 @@ static NSString * const kSleepModeStateChangedNotification =
 }
 
 
-#pragma mark - State Notification
-
 - (void)stateChanged:
     (NSNotification *)notification
 {
@@ -370,8 +357,6 @@ static NSString * const kSleepModeStateChangedNotification =
 
 @end
 
-
-#pragma mark - SleepModeModule
 
 @interface SleepModeModule :
     NSObject <CCUIContentModule>
@@ -401,12 +386,6 @@ static NSString * const kSleepModeStateChangedNotification =
             [[SleepModeContentViewController alloc]
                 init];
 
-        /*
-         * CCSupport yêu cầu property này.
-         *
-         * Dùng chính controller của module làm
-         * background controller.
-         */
         _backgroundViewController =
             _viewController;
     }
@@ -414,8 +393,6 @@ static NSString * const kSleepModeStateChangedNotification =
     return self;
 }
 
-
-#pragma mark - CCUIContentModule
 
 - (UIViewController *)contentViewController
 {

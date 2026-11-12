@@ -26,35 +26,51 @@ SleepMode_PRIVATE_FRAMEWORKS = \
     BackBoardServices \
     FrontBoardServices
 
-SUBPROJECTS += SleepModePrefs
-
 include $(THEOS_MAKE_PATH)/tweak.mk
+
+# =====================================================
+# PACKAGE SETTINGS BUNDLE
+# =====================================================
+
+SleepModePrefs_PATH = ../SleepModePrefs
+
+SleepModePrefs_MAKEFILE = $(SleepModePrefs_PATH)/Makefile
+
+SUBPROJECTS += ../SleepModePrefs
+
 include $(THEOS_MAKE_PATH)/aggregate.mk
 include $(THEOS_MAKE_PATH)/package.mk
 
-after-stage::
-	@mkdir -p $(THEOS_STAGING_DIR)/Library/PreferenceLoader/Preferences
+# =====================================================
+# COPY PREFERENCELOADER ENTRY
+# =====================================================
 
-	@cp ../SleepModePrefs/entry.plist \
+after-stage::
+	@mkdir -p \
+		$(THEOS_STAGING_DIR)/Library/PreferenceLoader/Preferences
+
+	@cp \
+		../SleepModePrefs/entry.plist \
 		$(THEOS_STAGING_DIR)/Library/PreferenceLoader/Preferences/SleepModePrefs.plist
 
 	@echo ""
-	@echo "===== SLEEPMODE SETTINGS ====="
+	@echo "================================"
+	@echo "SLEEPMODE SETTINGS"
+	@echo "================================"
 
 	@plutil -lint \
 		$(THEOS_STAGING_DIR)/Library/PreferenceLoader/Preferences/SleepModePrefs.plist
 
 	@echo ""
-	@echo "===== PREFERENCE BUNDLE ====="
-
-	@find $(THEOS_STAGING_DIR)/Library/PreferenceBundles \
-		-maxdepth 3 \
-		-type f \
-		-print 2>/dev/null || true
-
-	@echo ""
-	@echo "===== PREFERENCELOADER ====="
-
+	@echo "PreferenceLoader:"
 	@ls -lh \
 		$(THEOS_STAGING_DIR)/Library/PreferenceLoader/Preferences/ \
 		2>/dev/null || true
+
+	@echo ""
+	@echo "PreferenceBundles:"
+	@find \
+		$(THEOS_STAGING_DIR)/Library/PreferenceBundles \
+		-maxdepth 3 \
+		-type f \
+		-print 2>/dev/null || true

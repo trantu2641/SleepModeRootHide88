@@ -2,9 +2,10 @@ TARGET := iphone:clang:16.5:16.0
 
 include $(THEOS)/makefiles/common.mk
 
-############################
-# MAIN TWEAK
-############################
+
+##################################################
+# SLEEPMODE TWEAK
+##################################################
 
 TWEAK_NAME = SleepMode
 
@@ -14,7 +15,9 @@ SleepMode_FILES = \
     SleepControlCenter.m
 
 SleepMode_CFLAGS = \
-    -fobjc-arc
+    -fobjc-arc \
+    -Wno-unused-function \
+    -Wno-deprecated-declarations
 
 SleepMode_FRAMEWORKS = \
     UIKit \
@@ -26,9 +29,10 @@ SleepMode_PRIVATE_FRAMEWORKS = \
     BackBoardServices \
     FrontBoardServices
 
-############################
+
+##################################################
 # CONTROL CENTER MODULE
-############################
+##################################################
 
 BUNDLE_NAME = SleepModeModule
 
@@ -38,7 +42,9 @@ SleepModeModule_FILES = \
     SleepModeModule.m
 
 SleepModeModule_CFLAGS = \
-    -fobjc-arc
+    -fobjc-arc \
+    -Wno-unused-function \
+    -Wno-deprecated-declarations
 
 SleepModeModule_FRAMEWORKS = \
     UIKit \
@@ -50,9 +56,10 @@ SleepModeModule_INSTALL_PATH = \
 SleepModeModule_BUNDLE_RESOURCE_DIRS = \
     ControlCenter/SleepModeModule.bundle
 
-############################
+
+##################################################
 # CONTROL CENTER PROVIDER
-############################
+##################################################
 
 BUNDLE_NAME += SleepModeProvider
 
@@ -62,7 +69,9 @@ SleepModeProvider_FILES = \
     ../SleepModeProvider/SleepModeProvider.m
 
 SleepModeProvider_CFLAGS = \
-    -fobjc-arc
+    -fobjc-arc \
+    -Wno-unused-function \
+    -Wno-deprecated-declarations
 
 SleepModeProvider_FRAMEWORKS = \
     UIKit \
@@ -74,16 +83,18 @@ SleepModeProvider_INSTALL_PATH = \
 SleepModeProvider_BUNDLE_RESOURCE_DIRS = \
     ControlCenter/SleepModeProvider.bundle
 
-############################
+
+##################################################
 # BUILD
-############################
+##################################################
 
 include $(THEOS_MAKE_PATH)/tweak.mk
 include $(THEOS_MAKE_PATH)/bundle.mk
 
-############################
+
+##################################################
 # PACKAGE
-############################
+##################################################
 
 ARCHS = arm64 arm64e
 

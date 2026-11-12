@@ -1,155 +1,153 @@
-#import <Foundation/Foundation.h>
 #import <UIKit/UIKit.h>
+#import <Foundation/Foundation.h>
 
 #import "SleepManager.h"
 #import "SleepControlCenter.h"
 
+static void SleepModeApplySavedSettings(void)
+{
+    NSUserDefaults *defaults =
+        [NSUserDefaults standardUserDefaults];
 
-%group SleepModeGroup
+    SleepManager *manager =
+        [SleepManager sharedInstance];
 
+    BOOL enabled =
+        [defaults boolForKey:SleepModeEnabledKey];
+
+    NSTimeInterval timeout =
+        [defaults doubleForKey:SleepModeTimeoutKey];
+
+    if (timeout <= 0.0)
+        timeout = 15.0;
+
+    manager.timeout = timeout;
+    manager.enabled = enabled;
+
+    if (enabled) {
+        [manager start];
+    } else {
+        [manager stop];
+    }
+}
+
+static void SleepModeHandleCommand(NSNotification *notification)
+{
+    SleepManager *manager =
+        [SleepManager sharedInstance];
+
+    NSDictionary *info =
+        notification.userInfo;
+
+    NSNumber *enabledNumber =
+        info[@"enabled"];
+
+    NSNumber *timeoutNumber =
+        info[@"timeout"];
+
+    NSNumber *resetNumber =
+        info[@"reset"];
+
+    if (timeoutNumber != nil) {
+
+        NSTimeInterval timeout =
+            [timeoutNumber doubleValue];
+
+        if (timeout < 1.0)
+            timeout = 1.0;
+
+        manager.timeout = timeout;
+    }
+
+    if (enabledNumber != nil) {
+
+        BOOL enabled =
+            [enabledNumber boolValue];
+
+        manager.enabled = enabled;
+
+        if (enabled) {
+            [manager start];
+        } else {
+            [manager stop];
+        }
+    }
+
+    if ([resetNumber boolValue]) {
+        [manager resetTimer];
+    }
+
+    /*
+     * Nếu chỉ đổi timeout mà chế độ đang bật,
+     * khởi động lại timer với timeout mới.
+     */
+    if (timeoutNumber != nil &&
+        enabledNumber == nil &&
+        manager.enabled) {
+
+        [manager resetTimer];
+    }
+
+    [[NSNotificationCenter defaultCenter]
+        postNotificationName:SleepModeStateChangedNotification
+                      object:nil];
+}
+
+#pragma mark - Touch Reset
+
+%hook UIApplication
+
+- (void)sendEvent:(UIEvent *)event
+{
+    if (event.type == UIEventTypeTouches) {
+
+        SleepManager *manager =
+            [SleepManager sharedInstance];
+
+        if (manager.enabled) {
+            [manager resetTimer];
+        }
+    }
+
+    %orig;
+}
+
+%end
 
 #pragma mark - SpringBoard
 
 %hook SpringBoard
 
-- (void)applicationDidFinishLaunching:(id)application
+- (void)applicationDidFinishLaunching:(UIApplication *)application
 {
     %orig;
 
     /*
-     * Khởi tạo singleton.
+     * Nhận lệnh từ Control Center.
      */
-    [SleepManager sharedInstance];
+    [[NSNotificationCenter defaultCenter]
+        addObserverForName:SleepModeCommandNotification
+                    object:nil
+                     queue:[NSOperationQueue mainQueue]
+                usingBlock:^(NSNotification *notification) {
 
-    [SleepControlCenter sharedInstance];
-}
-
-
-- (void)sendEvent:(UIEvent *)event
-{
-    /*
-     * Chỉ xử lý TOUCH BEGAN.
-     *
-     * Không xử lý:
-     *
-     * - Moved
-     * - Stationary
-     * - Ended
-     *
-     * để tránh reset timer hàng chục/hàng trăm lần
-     * trong một thao tác vuốt.
-     */
-
-    if (event != nil &&
-        event.type == UIEventTypeTouches) {
-
-        NSSet *touches =
-            [event allTouches];
-
-        if (touches.count > 0) {
-
-            for (UITouch *touch in touches) {
-
-                if (touch.phase ==
-                    UITouchPhaseBegan) {
-
-                    [[SleepManager sharedInstance]
-                        userDidInteract];
-
-                    break;
-                }
-            }
-        }
-    }
+        SleepModeHandleCommand(notification);
+    }];
 
     /*
-     * Luôn trả event về SpringBoard ngay.
+     * Load trạng thái đã lưu.
      */
-    %orig;
+    SleepModeApplySavedSettings();
 }
 
 %end
-
-
-#pragma mark - System Idle Timer
-
-%hook SBIdleTimerGlobalCoordinator
-
-- (void)resetIdleTimer
-{
-    %orig;
-
-    /*
-     * Hệ thống tự reset idle timer.
-     * Đây cũng được xem là activity.
-     */
-    [[SleepManager sharedInstance]
-        userDidInteract];
-}
-
-%end
-
-
-#pragma mark - Lock / Unlock
-
-%hook SBLockScreenManager
-
-- (void)lockFromSource:(int)source
-{
-    %orig;
-
-    /*
-     * Khi thiết bị khóa:
-     *
-     * - dừng timer
-     * - không tiếp tục đếm
-     */
-    [[SleepManager sharedInstance]
-        deviceDidLock];
-}
-
-
-- (void)unlockUIFromSource:(int)source
-              withOptions:(id)options
-{
-    %orig;
-
-    /*
-     * Unlock:
-     *
-     * - bắt đầu chu kỳ mới
-     * - timer tính từ 0
-     */
-    [[SleepManager sharedInstance]
-        deviceDidUnlock];
-}
-
-%end
-
 
 #pragma mark - Constructor
 
 %ctor
 {
-    NSString *bundleID =
-        [[NSBundle mainBundle]
-            bundleIdentifier];
-
     /*
-     * CHỈ inject vào SpringBoard.
-     *
-     * Không inject vào app người dùng.
+     * Tweak chỉ inject SpringBoard
+     * theo SleepMode.plist.
      */
-    if ([bundleID
-            isEqualToString:
-                @"com.apple.springboard"]) {
-
-        %init(SleepModeGroup);
-
-        [SleepManager sharedInstance];
-
-        [SleepControlCenter sharedInstance];
-    }
 }
-
-%end

@@ -18,7 +18,7 @@ jobs:
     steps:
 
       # =====================================================
-      # CHECKOUT
+      # 1. CHECKOUT SOURCE
       # =====================================================
 
       - name: Checkout
@@ -26,21 +26,30 @@ jobs:
 
 
       # =====================================================
-      # XCODE
+      # 2. CHỌN XCODE
       # =====================================================
 
-      - name: Select Xcode
+      - name: Select Xcode 26.6
         run: |
           sudo xcode-select \
             -s /Applications/Xcode_26.6.app/Contents/Developer
 
-          echo "===== XCODE ====="
+          echo "================================"
+          echo "XCODE VERSION"
+          echo "================================"
 
           xcodebuild -version
 
+          echo ""
+          echo "================================"
+          echo "XCODE PATH"
+          echo "================================"
+
+          xcode-select -p
+
 
       # =====================================================
-      # DEPENDENCIES
+      # 3. CÀI DEPENDENCIES
       # =====================================================
 
       - name: Install dependencies
@@ -52,9 +61,24 @@ jobs:
             xz \
             perl
 
+          echo "================================"
+          echo "DEPENDENCIES"
+          echo "================================"
+
+          echo "ldid:"
+          which ldid
+
+          echo ""
+          echo "perl:"
+          which perl
+
+          echo ""
+          echo "xz:"
+          which xz
+
 
       # =====================================================
-      # THEOS
+      # 4. CÀI ROOT HIDE THEOS
       # =====================================================
 
       - name: Install RootHide Theos
@@ -67,9 +91,17 @@ jobs:
 
           echo "THEOS=$HOME/theos" >> "$GITHUB_ENV"
 
+          echo "================================"
+          echo "THEOS INSTALLED"
+          echo "================================"
+
+          echo "THEOS=$HOME/theos"
+
+          ls -la "$HOME/theos"
+
 
       # =====================================================
-      # dm.pl
+      # 5. CÀI dm.pl
       # =====================================================
 
       - name: Install dm.pl
@@ -93,16 +125,19 @@ jobs:
 
           echo "$THEOS/bin" >> "$GITHUB_PATH"
 
-          echo "===== dm.pl ====="
+          echo "================================"
+          echo "dm.pl INSTALLED"
+          echo "================================"
 
-          "$THEOS/bin/dm.pl" --help
+          ls -lh \
+            "$THEOS/bin/dm.pl"
 
 
       # =====================================================
-      # SDK
+      # 6. CÀI IPHONEOS 16.5 SDK
       # =====================================================
 
-      - name: Install iPhoneOS SDK
+      - name: Install iPhoneOS 16.5 SDK
         run: |
           export THEOS="$HOME/theos"
 
@@ -114,31 +149,47 @@ jobs:
             https://github.com/theos/sdks.git \
             /tmp/theos-sdks
 
+          echo "================================"
+          echo "AVAILABLE IPHONEOS SDKS"
+          echo "================================"
+
+          find /tmp/theos-sdks \
+            -maxdepth 1 \
+            -type d \
+            -name "iPhoneOS*.sdk" \
+            -print
+
+
           if [ ! -d \
             "/tmp/theos-sdks/iPhoneOS16.5.sdk" ]; then
 
-            echo "ERROR:"
-            echo "iPhoneOS16.5.sdk not found"
-
             echo ""
-            echo "Available SDKs:"
+            echo "================================"
+            echo "ERROR"
+            echo "================================"
 
-            find /tmp/theos-sdks \
-              -maxdepth 1 \
-              -type d \
-              -name "iPhoneOS*.sdk" \
-              -print
+            echo "iPhoneOS16.5.sdk was not found."
 
             exit 1
           fi
+
 
           cp -R \
             "/tmp/theos-sdks/iPhoneOS16.5.sdk" \
             "$THEOS/sdks/"
 
 
+          echo ""
+          echo "================================"
+          echo "SDK INSTALLED"
+          echo "================================"
+
+          ls -ld \
+            "$THEOS/sdks/iPhoneOS16.5.sdk"
+
+
       # =====================================================
-      # VERIFY
+      # 7. KIỂM TRA MÔI TRƯỜNG BUILD
       # =====================================================
 
       - name: Verify build environment
@@ -151,34 +202,113 @@ jobs:
 
           echo "$THEOS"
 
+
           echo ""
           echo "================================"
           echo "dm.pl"
           echo "================================"
 
-          which dm.pl
+          if [ ! -f "$THEOS/bin/dm.pl" ]; then
+            echo "ERROR: dm.pl not found"
+            exit 1
+          fi
 
-          ls -lh \
-            "$THEOS/bin/dm.pl"
+          echo "dm.pl found:"
+          ls -lh "$THEOS/bin/dm.pl"
+
+          echo ""
+          echo "PATH:"
+          which dm.pl || true
+
+
+          echo ""
+          echo "================================"
+          echo "LDID"
+          echo "================================"
+
+          if ! command -v ldid >/dev/null 2>&1; then
+            echo "ERROR: ldid not found"
+            exit 1
+          fi
+
+          which ldid
+
 
           echo ""
           echo "================================"
           echo "SDK"
           echo "================================"
 
+          if [ ! -d \
+            "$THEOS/sdks/iPhoneOS16.5.sdk" ]; then
+
+            echo "ERROR: SDK not found"
+            exit 1
+          fi
+
           ls -ld \
             "$THEOS/sdks/iPhoneOS16.5.sdk"
 
+
           echo ""
           echo "================================"
-          echo "ldid"
+          echo "THEOS VERSION"
           echo "================================"
 
-          which ldid
+          if [ -f "$THEOS/makefiles/common.mk" ]; then
+            echo "Theos common.mk found"
+          else
+            echo "ERROR: Theos common.mk not found"
+            exit 1
+          fi
 
 
       # =====================================================
-      # BUILD
+      # 8. KIỂM TRA CẤU TRÚC PROJECT
+      # =====================================================
+
+      - name: Check SleepMode project
+        run: |
+          echo "================================"
+          echo "PROJECT STRUCTURE"
+          echo "================================"
+
+          find SleepMode \
+            -maxdepth 2 \
+            -type f \
+            -print
+
+
+          echo ""
+          echo "================================"
+          echo "REQUIRED FILES"
+          echo "================================"
+
+
+          REQUIRED_FILES="
+          SleepMode/Makefile
+          SleepMode/control
+          SleepMode/SleepMode.plist
+          SleepMode/Tweak.xm
+          SleepMode/SleepManager.h
+          SleepMode/SleepManager.m
+          "
+
+
+          for FILE in $REQUIRED_FILES
+          do
+            if [ ! -f "$FILE" ]; then
+              echo "ERROR: Missing file:"
+              echo "$FILE"
+              exit 1
+            fi
+
+            echo "OK: $FILE"
+          done
+
+
+      # =====================================================
+      # 9. BUILD
       # =====================================================
 
       - name: Build SleepMode
@@ -187,14 +317,31 @@ jobs:
           export THEOS="$HOME/theos"
 
           echo "================================"
+          echo "THEOS"
+          echo "================================"
+
+          echo "$THEOS"
+
+
+          echo ""
+          echo "================================"
+          echo "TARGET"
+          echo "================================"
+
+          grep "^TARGET" Makefile || true
+
+
+          echo ""
+          echo "================================"
           echo "CLEAN"
           echo "================================"
 
           make clean
 
+
           echo ""
           echo "================================"
-          echo "PACKAGE"
+          echo "BUILD PACKAGE"
           echo "================================"
 
           make package \
@@ -203,13 +350,13 @@ jobs:
 
 
       # =====================================================
-      # SHOW RESULT
+      # 10. KIỂM TRA FILE DEB
       # =====================================================
 
-      - name: Show build result
+      - name: Verify DEB
         run: |
           echo "================================"
-          echo "BUILD RESULT"
+          echo "DEB FILES"
           echo "================================"
 
           find . \
@@ -218,8 +365,54 @@ jobs:
             -print
 
 
+          DEB_COUNT=$(
+            find . \
+              -type f \
+              -name "*.deb" \
+              | wc -l
+          )
+
+
+          if [ "$DEB_COUNT" -eq 0 ]; then
+            echo ""
+            echo "ERROR: No .deb package generated."
+            exit 1
+          fi
+
+
+          echo ""
+          echo "================================"
+          echo "BUILD SUCCESS"
+          echo "================================"
+
+          echo "Generated packages: $DEB_COUNT"
+
+
       # =====================================================
-      # UPLOAD
+      # 11. HIỂN THỊ THÔNG TIN PACKAGE
+      # =====================================================
+
+      - name: Show package information
+        run: |
+          echo "================================"
+          echo "PACKAGE INFORMATION"
+          echo "================================"
+
+          for DEB in $(find . -type f -name "*.deb")
+          do
+            echo ""
+            echo "--------------------------------"
+            echo "$DEB"
+            echo "--------------------------------"
+
+            ls -lh "$DEB"
+
+            file "$DEB"
+          done
+
+
+      # =====================================================
+      # 12. UPLOAD DEB
       # =====================================================
 
       - name: Upload DEB

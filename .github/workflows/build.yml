@@ -18,7 +18,7 @@ jobs:
 
 
       # =====================================================
-      # 2. KIỂM TRA / SỬA PREFERENCE FILES
+      # 2. KIỂM TRA / CHUẨN BỊ SETTINGS
       # =====================================================
 
       - name: Prepare SleepMode Preferences
@@ -29,59 +29,75 @@ jobs:
           echo "PREPARE SLEEPMODE PREFS"
           echo "================================"
 
-          test -f SleepModePrefs/SleepModePrefs.m
-          test -f SleepModePrefs/Root.plist
-          test -f SleepModePrefs/Resources/icon.png
+          if [ ! -f SleepModePrefs/SleepModePrefs.m ]; then
+            echo "ERROR: SleepModePrefs/SleepModePrefs.m missing"
+            exit 1
+          fi
+
+          if [ ! -f SleepModePrefs/Root.plist ]; then
+            echo "ERROR: SleepModePrefs/Root.plist missing"
+            exit 1
+          fi
+
+          if [ ! -f SleepModePrefs/Resources/icon.png ]; then
+            echo "ERROR: SleepModePrefs/Resources/icon.png missing"
+            exit 1
+          fi
 
           echo ""
-          echo "Fixing PreferenceLoader entry.plist..."
+          echo "Creating correct PreferenceLoader entry..."
 
           cat > SleepModePrefs/entry.plist <<'EOF'
-          <?xml version="1.0" encoding="UTF-8"?>
-          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
-           "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-          <plist version="1.0">
-          <dict>
-              <key>entry</key>
-              <dict>
-                  <key>bundle</key>
-                  <string>SleepModePrefs</string>
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+ "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>entry</key>
+    <dict>
+        <key>bundle</key>
+        <string>SleepModePrefs</string>
 
-                  <key>cell</key>
-                  <string>PSLinkCell</string>
+        <key>cell</key>
+        <string>PSLinkCell</string>
 
-                  <key>detail</key>
-                  <string>SleepModePrefsListController</string>
+        <key>detail</key>
+        <string>SleepModePrefsListController</string>
 
-                  <key>isController</key>
-                  <true/>
+        <key>isController</key>
+        <true/>
 
-                  <key>label</key>
-                  <string>SleepMode</string>
+        <key>label</key>
+        <string>SleepMode</string>
 
-                  <key>icon</key>
-                  <string>icon.png</string>
-              </dict>
-          </dict>
-          </plist>
-          EOF
+        <key>icon</key>
+        <string>icon.png</string>
+    </dict>
+</dict>
+</plist>
+EOF
 
           echo ""
-          echo "===== entry.plist ====="
+          echo "================================"
+          echo "ENTRY PLIST"
+          echo "================================"
+
           cat SleepModePrefs/entry.plist
 
           echo ""
-          echo "===== PLIST CHECK ====="
+          echo "================================"
+          echo "PLIST VALIDATION"
+          echo "================================"
 
           plutil -lint SleepModePrefs/entry.plist
           plutil -lint SleepModePrefs/Root.plist
 
           echo ""
-          echo "SleepMode Preferences: OK"
+          echo "Settings plist: OK"
 
 
       # =====================================================
-      # 3. KIỂM TRA CONTROL CENTER ĐÃ BỊ LOẠI KHỎI BUILD
+      # 3. KIỂM TRA CONTROL CENTER
       # =====================================================
 
       - name: Check Control Center Removal
@@ -99,14 +115,14 @@ jobs:
             2>/dev/null; then
 
             echo ""
-            echo "ERROR: Control Center files are still referenced by build."
+            echo "ERROR:"
+            echo "Control Center is still referenced by build files."
+
             exit 1
-
-          else
-
-            echo "Control Center: NOT INCLUDED IN BUILD"
-
           fi
+
+          echo ""
+          echo "Control Center: NOT REFERENCED"
 
 
       # =====================================================
@@ -175,7 +191,8 @@ jobs:
 
           rm -rf "$HOME/theos"
 
-          git clone --depth=1 \
+          git clone \
+            --depth=1 \
             https://github.com/roothide/theos.git \
             "$HOME/theos"
 
@@ -240,7 +257,8 @@ jobs:
 
           rm -rf /tmp/dm.pl
 
-          git clone --depth=1 \
+          git clone \
+            --depth=1 \
             https://github.com/theos/dm.pl.git \
             /tmp/dm.pl
 
@@ -259,8 +277,7 @@ jobs:
           echo "dm.pl INSTALLED"
           echo "================================"
 
-          ls -lh \
-            "$THEOS/bin/dm.pl"
+          ls -lh "$THEOS/bin/dm.pl"
 
 
       # =====================================================
@@ -277,7 +294,8 @@ jobs:
 
           rm -rf /tmp/theos-sdks
 
-          git clone --depth=1 \
+          git clone \
+            --depth=1 \
             https://github.com/theos/sdks.git \
             /tmp/theos-sdks
 
@@ -315,7 +333,7 @@ jobs:
 
 
       # =====================================================
-      # 10. KIỂM TRA MÔI TRƯỜNG BUILD
+      # 10. KIỂM TRA MÔI TRƯỜNG
       # =====================================================
 
       - name: Verify build environment
@@ -438,7 +456,6 @@ jobs:
           SleepMode/Tweak.xm
           SleepMode/SleepManager.h
           SleepMode/SleepManager.m
-
           SleepModePrefs/Makefile
           SleepModePrefs/SleepModePrefs.m
           SleepModePrefs/Root.plist
@@ -448,7 +465,6 @@ jobs:
 
           for FILE in $REQUIRED_FILES
           do
-
             if [ ! -f "$FILE" ]; then
               echo "ERROR: Missing file:"
               echo "$FILE"
@@ -456,7 +472,6 @@ jobs:
             fi
 
             echo "OK: $FILE"
-
           done
 
           echo ""
@@ -464,21 +479,16 @@ jobs:
           echo "PLIST VALIDATION"
           echo "================================"
 
-          plutil -lint \
-            SleepMode/SleepMode.plist
-
-          plutil -lint \
-            SleepModePrefs/Root.plist
-
-          plutil -lint \
-            SleepModePrefs/entry.plist
+          plutil -lint SleepMode/SleepMode.plist
+          plutil -lint SleepModePrefs/Root.plist
+          plutil -lint SleepModePrefs/entry.plist
 
           echo ""
-          echo "All required project files: OK"
+          echo "All project files: OK"
 
 
       # =====================================================
-      # 12. KIỂM TRA PREFS CONFIG
+      # 12. KIỂM TRA SETTINGS CONFIG
       # =====================================================
 
       - name: Check SleepMode Settings Configuration
@@ -525,55 +535,114 @@ jobs:
       # =====================================================
 
       - name: Build SleepMode
-        working-directory: SleepMode
         run: |
           set -e
 
           export THEOS="$HOME/theos"
 
           echo "================================"
+          echo "BUILD ROOT"
+          echo "================================"
+
+          pwd
+
+          echo ""
+          echo "================================"
+          echo "SLEEPMODE DIRECTORY"
+          echo "================================"
+
+          ls -la SleepMode
+
+          echo ""
+          echo "================================"
+          echo "SLEEPMODE PREFS DIRECTORY"
+          echo "================================"
+
+          ls -la SleepModePrefs
+
+          echo ""
+          echo "================================"
           echo "TARGET"
           echo "================================"
 
-          grep "^TARGET" Makefile || true
+          grep "^TARGET" SleepMode/Makefile || true
 
           echo ""
           echo "================================"
           echo "ARCHS"
           echo "================================"
 
-          grep "^ARCHS" Makefile || true
+          grep "^ARCHS" SleepMode/Makefile || true
 
           echo ""
           echo "================================"
           echo "PACKAGE SCHEME"
           echo "================================"
 
-          grep "THEOS_PACKAGE_SCHEME" Makefile || true
+          grep "THEOS_PACKAGE_SCHEME" SleepMode/Makefile || true
 
           echo ""
           echo "================================"
-          echo "CLEAN"
+          echo "CLEAN MAIN PROJECT"
           echo "================================"
 
-          make clean
+          make \
+            -C SleepMode \
+            clean
 
           echo ""
           echo "================================"
-          echo "BUILD PACKAGE"
+          echo "CLEAN PREFS"
           echo "================================"
 
-          make package \
+          make \
+            -C SleepModePrefs \
+            clean
+
+          echo ""
+          echo "================================"
+          echo "BUILD PREFS BUNDLE"
+          echo "================================"
+
+          make \
+            -C SleepModePrefs \
+            package \
             FINALPACKAGE=1 \
             THEOS_PACKAGE_SCHEME=roothide
 
           echo ""
           echo "================================"
-          echo "BUILD FINISHED"
+          echo "PREFS BUILD OUTPUT"
           echo "================================"
 
-          find packages \
-            -maxdepth 1 \
+          find SleepModePrefs \
+            -maxdepth 3 \
+            -type f \
+            \( \
+              -name "*.bundle" \
+              -o \
+              -name "*.deb" \
+            \) \
+            -print
+
+          echo ""
+          echo "================================"
+          echo "BUILD MAIN TWEAK"
+          echo "================================"
+
+          make \
+            -C SleepMode \
+            package \
+            FINALPACKAGE=1 \
+            THEOS_PACKAGE_SCHEME=roothide
+
+          echo ""
+          echo "================================"
+          echo "MAIN BUILD FINISHED"
+          echo "================================"
+
+          find SleepMode \
+            -maxdepth 3 \
             -type f \
             -name "*.deb" \
             -print
@@ -627,9 +696,9 @@ jobs:
           echo "$DEB"
 
 
-          # -------------------------------------------------
-          # Extract package
-          # -------------------------------------------------
+          # =================================================
+          # EXTRACT
+          # =================================================
 
           rm -rf /tmp/sleepmode-deb
           mkdir -p /tmp/sleepmode-deb
@@ -639,9 +708,9 @@ jobs:
             /tmp/sleepmode-deb
 
 
-          # -------------------------------------------------
-          # Show package contents
-          # -------------------------------------------------
+          # =================================================
+          # PACKAGE CONTENT
+          # =================================================
 
           echo ""
           echo "================================"
@@ -653,9 +722,9 @@ jobs:
             | sort
 
 
-          # -------------------------------------------------
+          # =================================================
           # CHECK TWEAK
-          # -------------------------------------------------
+          # =================================================
 
           echo ""
           echo "================================"
@@ -667,15 +736,14 @@ jobs:
 
             echo "ERROR: SleepMode.dylib missing"
             exit 1
-
           fi
 
           echo "SleepMode.dylib: OK"
 
 
-          # -------------------------------------------------
+          # =================================================
           # CHECK SETTINGS BUNDLE
-          # -------------------------------------------------
+          # =================================================
 
           echo ""
           echo "================================"
@@ -700,22 +768,46 @@ jobs:
           echo "PreferenceLoader entry: OK"
 
 
-          # -------------------------------------------------
-          # CHECK ROOT.PLIST
-          # -------------------------------------------------
+          # =================================================
+          # CHECK PREFS EXECUTABLE
+          # =================================================
 
           echo ""
           echo "================================"
-          echo "CHECK ROOT.PLIST"
+          echo "CHECK PREFS BUNDLE FILES"
           echo "================================"
+
+          find "$PREF_BUNDLE" \
+            -maxdepth 2 \
+            -type f \
+            -print
 
           if [ ! -f \
             "$PREF_BUNDLE/Root.plist" ]; then
 
             echo "ERROR: Root.plist missing"
             exit 1
-
           fi
+
+          if [ ! -f \
+            "$PREF_BUNDLE/icon.png" ]; then
+
+            echo "ERROR: icon.png missing"
+            exit 1
+          fi
+
+          echo "Root.plist: OK"
+          echo "icon.png: OK"
+
+
+          # =================================================
+          # CHECK ROOT PLIST
+          # =================================================
+
+          echo ""
+          echo "================================"
+          echo "CHECK ROOT.PLIST"
+          echo "================================"
 
           plutil -lint \
             "$PREF_BUNDLE/Root.plist"
@@ -723,9 +815,9 @@ jobs:
           echo "Root.plist: OK"
 
 
-          # -------------------------------------------------
-          # CHECK ENTRY PLIST
-          # -------------------------------------------------
+          # =================================================
+          # CHECK PREFERENCELOADER
+          # =================================================
 
           echo ""
           echo "================================"
@@ -736,33 +828,44 @@ jobs:
             "$PREF_ENTRY"
 
           echo ""
-          echo "entry.plist:"
+          echo "PreferenceLoader entry:"
           cat "$PREF_ENTRY"
 
 
-          # -------------------------------------------------
-          # CHECK ICON
-          # -------------------------------------------------
+          # =================================================
+          # CHECK REQUIRED SETTINGS
+          # =================================================
 
           echo ""
           echo "================================"
-          echo "CHECK ICON"
+          echo "CHECK SETTINGS KEYS"
           echo "================================"
 
-          if [ ! -f \
-            "$PREF_BUNDLE/icon.png" ]; then
+          grep -q \
+            "SleepModeEnabled" \
+            "$PREF_BUNDLE/Root.plist"
 
-            echo "ERROR: Preference icon missing"
-            exit 1
+          grep -q \
+            "SleepModeTimeout" \
+            "$PREF_BUNDLE/Root.plist"
 
-          fi
+          grep -q \
+            "SleepModePrefsListController" \
+            "$PREF_ENTRY"
 
-          echo "icon.png: OK"
+          grep -q \
+            "com.trantu.sleepmode.settingsChanged" \
+            "$PREF_BUNDLE/Root.plist"
+
+          echo "SleepModeEnabled: OK"
+          echo "SleepModeTimeout: OK"
+          echo "Controller: OK"
+          echo "Darwin notification: OK"
 
 
-          # -------------------------------------------------
-          # CHECK CONTROL CENTER ABSENCE
-          # -------------------------------------------------
+          # =================================================
+          # CHECK CONTROL CENTER
+          # =================================================
 
           echo ""
           echo "================================"
@@ -775,23 +878,25 @@ jobs:
               "SleepModeModule|SleepModeProvider|SleepControlCenter"; then
 
             echo ""
-            echo "ERROR: Control Center files found in package."
-            exit 1
+            echo "ERROR:"
+            echo "Control Center files found in package."
 
+            exit 1
           fi
 
           echo "Control Center: NOT PACKAGED"
 
 
-          # -------------------------------------------------
+          # =================================================
           # FINAL RESULT
-          # -------------------------------------------------
+          # =================================================
 
           echo ""
           echo "================================"
           echo "SLEEPMODE PACKAGE: OK"
           echo "================================"
 
+          echo ""
           echo "DEB:"
           echo "$DEB"
 
@@ -802,18 +907,24 @@ jobs:
           echo "  - Root.plist: OK"
           echo "  - entry.plist: OK"
           echo "  - icon: OK"
+          echo "  - Settings controller: OK"
+          echo "  - Darwin notification: OK"
           echo "  - Control Center: removed"
 
           echo ""
+          echo "================================"
           echo "BUILD SUCCESS"
+          echo "================================"
 
 
       # =====================================================
-      # 15. HIỂN THỊ PACKAGE
+      # 15. PACKAGE INFORMATION
       # =====================================================
 
       - name: Show package information
         run: |
+          set -e
+
           echo "================================"
           echo "PACKAGE INFORMATION"
           echo "================================"

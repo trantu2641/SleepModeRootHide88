@@ -42,6 +42,26 @@ SleepModeModule_INSTALL_PATH = \
 SleepModeModule_BUNDLE_RESOURCE_DIRS = \
     ../ControlCenter/SleepModeModule.bundle
 
+BUNDLE_NAME = SleepModeProvider
+
+SleepModeProvider_BUNDLE_EXTENSION = bundle
+
+SleepModeProvider_FILES = \
+    SleepModeProvider.m
+
+SleepModeProvider_CFLAGS = \
+    -fobjc-arc
+
+SleepModeProvider_FRAMEWORKS = \
+    UIKit \
+    Foundation
+
+SleepModeProvider_INSTALL_PATH = \
+    /Library/ControlCenter/CCSupport_Providers
+
+SleepModeProvider_BUNDLE_RESOURCE_DIRS = \
+    ../ControlCenter/SleepModeProvider.bundle
+
 include $(THEOS_MAKE_PATH)/tweak.mk
 include $(THEOS_MAKE_PATH)/bundle.mk
 

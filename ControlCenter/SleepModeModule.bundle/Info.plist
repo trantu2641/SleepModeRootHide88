@@ -44,6 +44,11 @@
     <key>NSPrincipalClass</key>
     <string>SleepModeModule</string>
 
+    <!--
+        Không cho Control Center tự thay đổi kích thước.
+        Tile 1x1.
+    -->
+
     <key>CCSGetModuleSizeAtRuntime</key>
     <false/>
 
@@ -54,6 +59,7 @@
         <dict>
             <key>Width</key>
             <integer>1</integer>
+
             <key>Height</key>
             <integer>1</integer>
         </dict>
@@ -62,11 +68,12 @@
         <dict>
             <key>Width</key>
             <integer>1</integer>
+
             <key>Height</key>
             <integer>1</integer>
         </dict>
 
-    </dict>
+    </key>
 
 </dict>
 </plist>

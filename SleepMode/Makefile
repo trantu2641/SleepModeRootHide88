@@ -3,9 +3,9 @@ TARGET := iphone:clang:16.5:16.0
 include $(THEOS)/makefiles/common.mk
 
 
-# ==========================================================
-# SLEEPMODE TWEAK
-# ==========================================================
+# ==========================================
+# SleepMode TWEAK
+# ==========================================
 
 TWEAK_NAME = SleepMode
 
@@ -28,9 +28,9 @@ SleepMode_PRIVATE_FRAMEWORKS = \
     FrontBoardServices
 
 
-# ==========================================================
+# ==========================================
 # CONTROL CENTER MODULE
-# ==========================================================
+# ==========================================
 
 BUNDLE_NAME = SleepModeModule
 
@@ -49,21 +49,22 @@ SleepModeModule_FRAMEWORKS = \
 SleepModeModule_INSTALL_PATH = \
     /Library/ControlCenter/Bundles
 
-#
-# Resource của bundle:
-#
+# QUAN TRỌNG:
+# Copy toàn bộ nội dung của:
 # ControlCenter/SleepModeModule.bundle/
-# ├── Info.plist
-# ├── icon@3x.png
-# └── icon.png
 #
+# vào gốc:
+# SleepModeModule.bundle/
+#
+# để Info.plist + icon được đóng gói.
+
 SleepModeModule_BUNDLE_RESOURCE_DIRS = \
-    ControlCenter/SleepModeModule.bundle
+    ../ControlCenter/SleepModeModule.bundle
 
 
-# ==========================================================
+# ==========================================
 # BUILD
-# ==========================================================
+# ==========================================
 
 include $(THEOS_MAKE_PATH)/tweak.mk
 include $(THEOS_MAKE_PATH)/bundle.mk

@@ -2,14 +2,11 @@
 
 #import "SleepManager.h"
 
-#pragma mark - Notification
 
 NSString * const
     SleepControlCenterStateChangedNotification =
         @"com.trantu.sleepmode.stateChanged";
 
-
-#pragma mark - SleepControlCenter
 
 @interface SleepControlCenter ()
 
@@ -26,8 +23,7 @@ NSString * const
 
 + (instancetype)sharedInstance
 {
-    static SleepControlCenter *sharedInstance =
-        nil;
+    static SleepControlCenter *sharedInstance = nil;
 
     static dispatch_once_t onceToken;
 
@@ -51,19 +47,20 @@ NSString * const
 
     if (self) {
 
-        /*
-         * Kết nối với SleepManager hiện tại.
-         */
         _sleepManager =
             [SleepManager sharedInstance];
 
         /*
-         * Đồng bộ trạng thái ban đầu.
+         * Lấy trạng thái hiện tại từ SleepManager.
+         *
+         * Nếu sau này có Preferences,
+         * phần này sẽ được đổi thành đọc
+         * từ SleepPreferences.
          */
-        _enabled =
+        self.enabled =
             _sleepManager.enabled;
 
-        _timeout =
+        self.timeout =
             _sleepManager.timeout;
     }
 
@@ -75,44 +72,55 @@ NSString * const
 
 - (BOOL)isEnabled
 {
-    return _enabled;
+    return self.sleepManager.enabled;
 }
 
 
 - (void)setEnabled:(BOOL)enabled
 {
-    if (_enabled == enabled) {
+    BOOL currentEnabled =
+        self.sleepManager.enabled;
+
+    if (currentEnabled == enabled) {
         return;
     }
 
-    _enabled = enabled;
 
     /*
-     * Đồng bộ sang SleepManager.
+     * Đồng bộ trạng thái xuống SleepManager.
      */
-    _sleepManager.enabled =
+    self.sleepManager.enabled =
         enabled;
+
 
     if (enabled) {
 
         /*
-         * Bật lại engine.
+         * Khi bật:
+         *
+         * 1. Reset timer
+         * 2. Bắt đầu đếm
          */
-        [_sleepManager resetTimer];
+        [self.sleepManager resetTimer];
 
-        [_sleepManager start];
+        [self.sleepManager start];
 
     } else {
 
         /*
-         * Tắt engine.
+         * Khi tắt:
+         *
+         * Dừng hoàn toàn timer.
          */
-        [_sleepManager stop];
+        [self.sleepManager stop];
     }
+
 
     [self postStateChanged];
 }
 
+
+#pragma mark - Enable / Disable / Toggle
 
 - (void)enable
 {
@@ -137,7 +145,7 @@ NSString * const
 
 - (NSTimeInterval)currentTimeout
 {
-    return _timeout;
+    return self.sleepManager.timeout;
 }
 
 
@@ -150,52 +158,55 @@ NSString * const
         timeout = 0.0;
     }
 
-    /*
-     * Không cần thay đổi nếu giống hiện tại.
-     */
-    if (_timeout == timeout) {
+
+    NSTimeInterval currentTimeout =
+        self.sleepManager.timeout;
+
+
+    if (fabs(currentTimeout - timeout) < 0.001) {
         return;
     }
 
-    _timeout =
-        timeout;
 
     /*
-     * Đồng bộ sang SleepManager.
+     * Đồng bộ timeout xuống SleepManager.
      */
-    _sleepManager.timeout =
+    self.sleepManager.timeout =
         timeout;
 
+
     /*
-     * Đổi timeout thì bắt đầu lại
-     * một chu kỳ mới.
+     * Đổi thời gian thì bắt đầu
+     * lại từ 0 giây.
      */
-    [_sleepManager resetTimer];
+    [self.sleepManager resetTimer];
+
 
     [self postStateChanged];
 }
 
 
-#pragma mark - Reset Timer
+#pragma mark - Reset
 
 - (void)resetTimer
 {
-    [_sleepManager resetTimer];
+    [self.sleepManager resetTimer];
 }
 
 
-#pragma mark - State Notification
+#pragma mark - Notification
 
 - (void)postStateChanged
 {
     NSDictionary *userInfo =
         @{
             @"enabled":
-                @(_enabled),
+                @(self.enabled),
 
             @"timeout":
-                @(_timeout)
+                @(self.currentTimeout)
         };
+
 
     [[NSNotificationCenter defaultCenter]
         postNotificationName:
@@ -216,8 +227,9 @@ NSString * const
     return
         [NSString stringWithFormat:
             @"<SleepControlCenter: enabled=%@ timeout=%.1f>",
-            _enabled ? @"YES" : @"NO",
-            _timeout];
+            self.enabled ? @"YES" : @"NO",
+            self.currentTimeout];
 }
+
 
 @end

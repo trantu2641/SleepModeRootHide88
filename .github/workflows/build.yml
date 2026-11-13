@@ -27,8 +27,8 @@ jobs:
           XCODE_PATH="/Applications/Xcode_26.6.app"
 
           if [ ! -d "$XCODE_PATH" ]; then
-            echo "Xcode 26.6 not found"
-            ls -d /Applications/Xcode*.app || true
+            echo "ERROR: Xcode 26.6 not found"
+            ls -la /Applications/Xcode*.app || true
             exit 1
           fi
 
@@ -59,14 +59,15 @@ jobs:
             "$THEOS"
 
           test -d "$THEOS"
+
           test -f "$THEOS/bin/update-theos"
 
           echo "THEOS=$THEOS" >> "$GITHUB_ENV"
           echo "$THEOS/bin" >> "$GITHUB_PATH"
 
           echo "========================================"
-          echo "THEOS=$THEOS"
-          echo "PATH=$PATH"
+          echo "THEOS:"
+          echo "$THEOS"
           echo "========================================"
 
           "$THEOS/bin/update-theos"
@@ -102,7 +103,14 @@ jobs:
             https://github.com/theos/sdks.git \
             /tmp/theos-sdks
 
-          test -d /tmp/theos-sdks/iPhoneOS16.5.sdk
+          if [ ! -d "/tmp/theos-sdks/iPhoneOS16.5.sdk" ]; then
+            echo "ERROR: iPhoneOS16.5.sdk not found"
+
+            echo "Available SDKs:"
+            find /tmp/theos-sdks -maxdepth 1 -type d -print
+
+            exit 1
+          fi
 
           mkdir -p "$THEOS/sdks"
 
@@ -113,52 +121,100 @@ jobs:
             "$THEOS/sdks/iPhoneOS16.5.sdk"
 
           echo "========================================"
-          echo "SDK installed:"
+          echo "Installed SDK:"
           echo "$THEOS/sdks/iPhoneOS16.5.sdk"
           echo "========================================"
 
-          ls -la "$THEOS/sdks/iPhoneOS16.5.sdk"
+      - name: Debug project structure
+        shell: bash
+        run: |
+          set -e
+
+          echo "========================================"
+          echo "PROJECT STRUCTURE"
+          echo "========================================"
+
+          echo "Repository root:"
+          pwd
+
+          echo ""
+          echo "Top-level:"
+          find . -maxdepth 2 -print | sort
+
+          echo ""
+          echo "SleepMode:"
+          find SleepMode -maxdepth 3 -print | sort || true
+
+          echo ""
+          echo "SleepModePrefs:"
+          find SleepModePrefs -maxdepth 3 -print | sort || true
 
       - name: Validate sources and plists
         shell: bash
         run: |
           set -e
 
-          export THEOS="$HOME/theos"
-          export PATH="$THEOS/bin:$PATH"
-
           echo "========================================"
           echo "Validating project"
           echo "========================================"
 
-          test -f SleepMode/prebuilt/SleepMode.dylib
-          test -f SleepMode/prebuilt/SleepMode.plist
+          check_file() {
+            FILE="$1"
 
-          test -f SleepMode/Tweak.xm
-          test -f SleepMode/SleepModeSettingsBridge.plist
+            if [ -f "$FILE" ]; then
+              echo "[OK]   $FILE"
+            else
+              echo "[MISS] $FILE"
+              return 1
+            fi
+          }
 
-          test ! -f SleepMode/SleepManager.m
+          check_not_file() {
+            FILE="$1"
 
-          test -f SleepModePrefs/SleepModePrefs.m
-          test -f SleepModePrefs/SleepModeTimeoutController.m
+            if [ ! -f "$FILE" ]; then
+              echo "[OK]   absent: $FILE"
+            else
+              echo "[ERROR] unexpected file exists: $FILE"
+              return 1
+            fi
+          }
 
-          test -f SleepModePrefs/Resources/Root.plist
-          test -f SleepModePrefs/Resources/icon.png
+          echo ""
+          echo "Core files:"
+          check_file "SleepMode/prebuilt/SleepMode.dylib"
+          check_file "SleepMode/prebuilt/SleepMode.plist"
+          check_file "SleepMode/Tweak.xm"
+          check_file "SleepMode/SleepModeSettingsBridge.plist"
 
-          test -f SleepModePrefs/entry.plist
+          echo ""
+          echo "Removed source core:"
+          check_not_file "SleepMode/SleepManager.m"
+
+          echo ""
+          echo "Preferences:"
+          check_file "SleepModePrefs/SleepModePrefs.m"
+          check_file "SleepModePrefs/SleepModeTimeoutController.m"
+          check_file "SleepModePrefs/Resources/Root.plist"
+          check_file "SleepModePrefs/Resources/icon.png"
+          check_file "SleepModePrefs/entry.plist"
+
+          echo ""
+          echo "Validating plist files:"
 
           plutil -lint \
-            SleepMode/prebuilt/SleepMode.plist
+            "SleepMode/prebuilt/SleepMode.plist"
 
           plutil -lint \
-            SleepMode/SleepModeSettingsBridge.plist
+            "SleepMode/SleepModeSettingsBridge.plist"
 
           plutil -lint \
-            SleepModePrefs/Resources/Root.plist
+            "SleepModePrefs/Resources/Root.plist"
 
           plutil -lint \
-            SleepModePrefs/entry.plist
+            "SleepModePrefs/entry.plist"
 
+          echo ""
           echo "========================================"
           echo "Source validation passed"
           echo "========================================"
@@ -192,8 +248,15 @@ jobs:
               | head -n 1
           )"
 
-          test -n "$PREFS_BUNDLE"
-          test -d "$PREFS_BUNDLE"
+          if [ -z "$PREFS_BUNDLE" ]; then
+            echo "ERROR: SleepModePrefs.bundle not found"
+
+            find SleepModePrefs \
+              -type d \
+              -print
+
+            exit 1
+          fi
 
           test -f "$PREFS_BUNDLE/SleepModePrefs"
           test -f "$PREFS_BUNDLE/Root.plist"
@@ -208,8 +271,7 @@ jobs:
             /tmp/sleepmode-prefs/SleepModePrefs.bundle
 
           echo "========================================"
-          echo "Preferences bundle:"
-          echo "$PREFS_BUNDLE"
+          echo "Preferences bundle built"
           echo "========================================"
 
           find \
@@ -218,7 +280,7 @@ jobs:
             -print \
             | sort
 
-      - name: Build package with original 1.1.0 core
+      - name: Build SleepMode package
         shell: bash
         run: |
           set -e
@@ -227,7 +289,7 @@ jobs:
           export PATH="$THEOS/bin:$PATH"
 
           echo "========================================"
-          echo "Building SleepMode package"
+          echo "Building SleepMode"
           echo "========================================"
 
           make \
@@ -249,13 +311,22 @@ jobs:
               | head -n 1
           )"
 
-          test -n "$MAIN_DEB"
-          test -f "$MAIN_DEB"
+          if [ -z "$MAIN_DEB" ]; then
+            echo "ERROR: No .deb generated"
+
+            find SleepMode \
+              -maxdepth 3 \
+              -type f \
+              -print \
+              | sort
+
+            exit 1
+          fi
 
           echo "MAIN_DEB=$MAIN_DEB" >> "$GITHUB_ENV"
 
           echo "========================================"
-          echo "Package built successfully:"
+          echo "Built package:"
           ls -lh "$MAIN_DEB"
           echo "========================================"
 
@@ -266,10 +337,6 @@ jobs:
 
           export THEOS="$HOME/theos"
           export PATH="$THEOS/bin:$PATH"
-
-          echo "========================================"
-          echo "Merging Settings bundle"
-          echo "========================================"
 
           rm -rf \
             /tmp/sleepmode-final \
@@ -313,11 +380,6 @@ jobs:
 
           test -f "$MAIN_DEB"
 
-          echo "========================================"
-          echo "Final package rebuilt"
-          ls -lh "$MAIN_DEB"
-          echo "========================================"
-
           mkdir -p /tmp/sleepmode-check
 
           dpkg-deb \
@@ -329,7 +391,7 @@ jobs:
           PREF="/tmp/sleepmode-check/Library/PreferenceBundles/SleepModePrefs.bundle"
 
           echo "========================================"
-          echo "Checking package contents"
+          echo "Checking required files"
           echo "========================================"
 
           test -f "$DYL/SleepMode.dylib"
@@ -355,7 +417,7 @@ jobs:
             "$DYL/SleepModeSettingsBridge.plist"
 
           echo "========================================"
-          echo "Checking for Control Center payload"
+          echo "Checking Control Center"
           echo "========================================"
 
           if find /tmp/sleepmode-check \
@@ -363,17 +425,15 @@ jobs:
               | grep -Ei \
                 'SleepModeModule|SleepModeProvider|SleepControlCenter'; then
 
-            echo "ERROR: Unexpected Control Center payload found"
+            echo "ERROR: Control Center payload detected"
             exit 1
           fi
 
           echo "No Control Center payload found."
 
           echo "========================================"
-          echo "Package verification passed"
+          echo "PACKAGE VERIFICATION PASSED"
           echo "========================================"
-
-          echo "Final package contents:"
 
           find \
             /tmp/sleepmode-check \

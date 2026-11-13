@@ -2,124 +2,384 @@ name: Build SleepMode RootHide
 
 on:
   push:
-    branches: [feature/core]
+    branches:
+      - feature/core
+
   pull_request:
-    branches: [feature/core]
+    branches:
+      - feature/core
+
   workflow_dispatch:
 
 jobs:
   build:
     runs-on: macos-26
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
       - name: Select Xcode
+        shell: bash
         run: |
           set -e
+
           XCODE_PATH="/Applications/Xcode_26.6.app"
+
           if [ ! -d "$XCODE_PATH" ]; then
-            echo "Xcode 26.6 not found"; ls -d /Applications/Xcode*.app || true; exit 1
+            echo "Xcode 26.6 not found"
+            ls -d /Applications/Xcode*.app || true
+            exit 1
           fi
+
           sudo xcode-select -s "$XCODE_PATH/Contents/Developer"
+
           xcodebuild -version
 
       - name: Install dependencies
-        run: brew install ldid xz perl dpkg
+        shell: bash
+        run: |
+          set -e
+
+          brew install ldid xz perl dpkg
 
       - name: Install RootHide Theos
+        shell: bash
         run: |
           set -e
-          git clone --depth=1 https://github.com/roothide/theos.git "$HOME/theos"
-          echo "THEOS=$HOME/theos" >> "$GITHUB_ENV"
-          "$HOME/theos/bin/update-theos"
+
+          export THEOS="$HOME/theos"
+          export PATH="$THEOS/bin:$PATH"
+
+          rm -rf "$THEOS"
+
+          git clone \
+            --depth=1 \
+            https://github.com/roothide/theos.git \
+            "$THEOS"
+
+          test -d "$THEOS"
+          test -f "$THEOS/bin/update-theos"
+
+          echo "THEOS=$THEOS" >> "$GITHUB_ENV"
+          echo "$THEOS/bin" >> "$GITHUB_PATH"
+
+          echo "========================================"
+          echo "THEOS=$THEOS"
+          echo "PATH=$PATH"
+          echo "========================================"
+
+          "$THEOS/bin/update-theos"
 
       - name: Install dm.pl and SDK
+        shell: bash
         run: |
           set -e
-          git clone --depth=1 https://github.com/theos/dm.pl.git /tmp/dm.pl
-          cp /tmp/dm.pl/dm.pl "$HOME/theos/bin/dm.pl"
-          chmod +x "$HOME/theos/bin/dm.pl"
-          echo "$HOME/theos/bin" >> "$GITHUB_PATH"
-          git clone --depth=1 https://github.com/theos/sdks.git /tmp/theos-sdks
-          mkdir -p "$HOME/theos/sdks"
+
+          export THEOS="$HOME/theos"
+          export PATH="$THEOS/bin:$PATH"
+
+          rm -rf /tmp/dm.pl
+          rm -rf /tmp/theos-sdks
+
+          git clone \
+            --depth=1 \
+            https://github.com/theos/dm.pl.git \
+            /tmp/dm.pl
+
+          test -f /tmp/dm.pl/dm.pl
+
+          cp \
+            /tmp/dm.pl/dm.pl \
+            "$THEOS/bin/dm.pl"
+
+          chmod +x "$THEOS/bin/dm.pl"
+
+          echo "$THEOS/bin" >> "$GITHUB_PATH"
+
+          git clone \
+            --depth=1 \
+            https://github.com/theos/sdks.git \
+            /tmp/theos-sdks
+
           test -d /tmp/theos-sdks/iPhoneOS16.5.sdk
-          cp -R /tmp/theos-sdks/iPhoneOS16.5.sdk "$HOME/theos/sdks/"
+
+          mkdir -p "$THEOS/sdks"
+
+          rm -rf "$THEOS/sdks/iPhoneOS16.5.sdk"
+
+          cp -R \
+            /tmp/theos-sdks/iPhoneOS16.5.sdk \
+            "$THEOS/sdks/iPhoneOS16.5.sdk"
+
+          echo "========================================"
+          echo "SDK installed:"
+          echo "$THEOS/sdks/iPhoneOS16.5.sdk"
+          echo "========================================"
+
+          ls -la "$THEOS/sdks/iPhoneOS16.5.sdk"
 
       - name: Validate sources and plists
+        shell: bash
         run: |
           set -e
+
+          export THEOS="$HOME/theos"
+          export PATH="$THEOS/bin:$PATH"
+
+          echo "========================================"
+          echo "Validating project"
+          echo "========================================"
+
           test -f SleepMode/prebuilt/SleepMode.dylib
           test -f SleepMode/prebuilt/SleepMode.plist
+
           test -f SleepMode/Tweak.xm
           test -f SleepMode/SleepModeSettingsBridge.plist
+
           test ! -f SleepMode/SleepManager.m
+
           test -f SleepModePrefs/SleepModePrefs.m
           test -f SleepModePrefs/SleepModeTimeoutController.m
+
           test -f SleepModePrefs/Resources/Root.plist
           test -f SleepModePrefs/Resources/icon.png
-          plutil -lint SleepMode/prebuilt/SleepMode.plist
-          plutil -lint SleepMode/SleepModeSettingsBridge.plist
-          plutil -lint SleepModePrefs/Resources/Root.plist
-          plutil -lint SleepModePrefs/entry.plist
+
+          test -f SleepModePrefs/entry.plist
+
+          plutil -lint \
+            SleepMode/prebuilt/SleepMode.plist
+
+          plutil -lint \
+            SleepMode/SleepModeSettingsBridge.plist
+
+          plutil -lint \
+            SleepModePrefs/Resources/Root.plist
+
+          plutil -lint \
+            SleepModePrefs/entry.plist
+
+          echo "========================================"
+          echo "Source validation passed"
+          echo "========================================"
 
       - name: Build Preferences bundle
+        shell: bash
         run: |
           set -e
+
           export THEOS="$HOME/theos"
-          make -C SleepModePrefs clean
-          make -C SleepModePrefs all THEOS_PACKAGE_SCHEME=roothide
-          PREFS_BUNDLE="$(find SleepModePrefs -type d -name SleepModePrefs.bundle -print | head -n 1)"
+          export PATH="$THEOS/bin:$PATH"
+
+          echo "========================================"
+          echo "Building SleepModePrefs"
+          echo "========================================"
+
+          make \
+            -C SleepModePrefs \
+            clean
+
+          make \
+            -C SleepModePrefs \
+            all \
+            THEOS_PACKAGE_SCHEME=roothide
+
+          PREFS_BUNDLE="$(
+            find SleepModePrefs \
+              -type d \
+              -name "SleepModePrefs.bundle" \
+              -print \
+              | head -n 1
+          )"
+
           test -n "$PREFS_BUNDLE"
+          test -d "$PREFS_BUNDLE"
+
           test -f "$PREFS_BUNDLE/SleepModePrefs"
           test -f "$PREFS_BUNDLE/Root.plist"
           test -f "$PREFS_BUNDLE/icon.png"
+
+          rm -rf /tmp/sleepmode-prefs
+
           mkdir -p /tmp/sleepmode-prefs
-          cp -R "$PREFS_BUNDLE" /tmp/sleepmode-prefs/SleepModePrefs.bundle
+
+          cp -R \
+            "$PREFS_BUNDLE" \
+            /tmp/sleepmode-prefs/SleepModePrefs.bundle
+
+          echo "========================================"
+          echo "Preferences bundle:"
+          echo "$PREFS_BUNDLE"
+          echo "========================================"
+
+          find \
+            /tmp/sleepmode-prefs/SleepModePrefs.bundle \
+            -type f \
+            -print \
+            | sort
 
       - name: Build package with original 1.1.0 core
+        shell: bash
         run: |
           set -e
+
           export THEOS="$HOME/theos"
-          make -C SleepMode clean || true
-          make -C SleepMode package FINALPACKAGE=1 THEOS_PACKAGE_SCHEME=roothide
-          MAIN_DEB="$(find SleepMode/packages -maxdepth 1 -name '*.deb' -print | head -n 1)"
+          export PATH="$THEOS/bin:$PATH"
+
+          echo "========================================"
+          echo "Building SleepMode package"
+          echo "========================================"
+
+          make \
+            -C SleepMode \
+            clean || true
+
+          make \
+            -C SleepMode \
+            package \
+            FINALPACKAGE=1 \
+            THEOS_PACKAGE_SCHEME=roothide
+
+          MAIN_DEB="$(
+            find SleepMode/packages \
+              -maxdepth 1 \
+              -type f \
+              -name "*.deb" \
+              -print \
+              | head -n 1
+          )"
+
           test -n "$MAIN_DEB"
+          test -f "$MAIN_DEB"
+
           echo "MAIN_DEB=$MAIN_DEB" >> "$GITHUB_ENV"
 
+          echo "========================================"
+          echo "Package built successfully:"
+          ls -lh "$MAIN_DEB"
+          echo "========================================"
+
       - name: Merge Settings bundle and verify package
+        shell: bash
         run: |
           set -e
-          rm -rf /tmp/sleepmode-final /tmp/sleepmode-check
+
+          export THEOS="$HOME/theos"
+          export PATH="$THEOS/bin:$PATH"
+
+          echo "========================================"
+          echo "Merging Settings bundle"
+          echo "========================================"
+
+          rm -rf \
+            /tmp/sleepmode-final \
+            /tmp/sleepmode-check
+
           mkdir -p /tmp/sleepmode-final
-          dpkg-deb -x "$MAIN_DEB" /tmp/sleepmode-final
-          mkdir -p /tmp/sleepmode-final/DEBIAN
-          dpkg-deb -e "$MAIN_DEB" /tmp/sleepmode-final/DEBIAN
-          mkdir -p /tmp/sleepmode-final/Library/PreferenceBundles
-          mkdir -p /tmp/sleepmode-final/Library/PreferenceLoader/Preferences
-          cp -R /tmp/sleepmode-prefs/SleepModePrefs.bundle /tmp/sleepmode-final/Library/PreferenceBundles/
-          cp SleepModePrefs/entry.plist /tmp/sleepmode-final/Library/PreferenceLoader/Preferences/SleepModePrefs.plist
+
+          dpkg-deb \
+            -x \
+            "$MAIN_DEB" \
+            /tmp/sleepmode-final
+
+          mkdir -p \
+            /tmp/sleepmode-final/DEBIAN
+
+          dpkg-deb \
+            -e \
+            "$MAIN_DEB" \
+            /tmp/sleepmode-final/DEBIAN
+
+          mkdir -p \
+            /tmp/sleepmode-final/Library/PreferenceBundles
+
+          mkdir -p \
+            /tmp/sleepmode-final/Library/PreferenceLoader/Preferences
+
+          cp -R \
+            /tmp/sleepmode-prefs/SleepModePrefs.bundle \
+            /tmp/sleepmode-final/Library/PreferenceBundles/
+
+          cp \
+            SleepModePrefs/entry.plist \
+            /tmp/sleepmode-final/Library/PreferenceLoader/Preferences/SleepModePrefs.plist
+
           rm -f "$MAIN_DEB"
-          dpkg-deb --build /tmp/sleepmode-final "$MAIN_DEB"
+
+          dpkg-deb \
+            --build \
+            /tmp/sleepmode-final \
+            "$MAIN_DEB"
+
+          test -f "$MAIN_DEB"
+
+          echo "========================================"
+          echo "Final package rebuilt"
+          ls -lh "$MAIN_DEB"
+          echo "========================================"
 
           mkdir -p /tmp/sleepmode-check
-          dpkg-deb -x "$MAIN_DEB" /tmp/sleepmode-check
-          DYL=/tmp/sleepmode-check/Library/MobileSubstrate/DynamicLibraries
-          PREF=/tmp/sleepmode-check/Library/PreferenceBundles/SleepModePrefs.bundle
+
+          dpkg-deb \
+            -x \
+            "$MAIN_DEB" \
+            /tmp/sleepmode-check
+
+          DYL="/tmp/sleepmode-check/Library/MobileSubstrate/DynamicLibraries"
+          PREF="/tmp/sleepmode-check/Library/PreferenceBundles/SleepModePrefs.bundle"
+
+          echo "========================================"
+          echo "Checking package contents"
+          echo "========================================"
+
           test -f "$DYL/SleepMode.dylib"
           test -f "$DYL/SleepMode.plist"
+
           test -f "$DYL/SleepModeSettingsBridge.dylib"
           test -f "$DYL/SleepModeSettingsBridge.plist"
+
           test -f "$PREF/SleepModePrefs"
           test -f "$PREF/Root.plist"
           test -f "$PREF/icon.png"
-          test -f /tmp/sleepmode-check/Library/PreferenceLoader/Preferences/SleepModePrefs.plist
-          plutil -lint "$PREF/Root.plist"
-          if find /tmp/sleepmode-check -type f | grep -Ei 'SleepModeModule|SleepModeProvider|SleepControlCenter'; then
-            echo "Unexpected Control Center payload"; exit 1
+
+          test -f \
+            "/tmp/sleepmode-check/Library/PreferenceLoader/Preferences/SleepModePrefs.plist"
+
+          plutil -lint \
+            "$PREF/Root.plist"
+
+          plutil -lint \
+            "$DYL/SleepMode.plist"
+
+          plutil -lint \
+            "$DYL/SleepModeSettingsBridge.plist"
+
+          echo "========================================"
+          echo "Checking for Control Center payload"
+          echo "========================================"
+
+          if find /tmp/sleepmode-check \
+              -type f \
+              | grep -Ei \
+                'SleepModeModule|SleepModeProvider|SleepControlCenter'; then
+
+            echo "ERROR: Unexpected Control Center payload found"
+            exit 1
           fi
+
+          echo "No Control Center payload found."
+
+          echo "========================================"
           echo "Package verification passed"
-          find /tmp/sleepmode-check -type f -print | sort
+          echo "========================================"
+
+          echo "Final package contents:"
+
+          find \
+            /tmp/sleepmode-check \
+            -type f \
+            -print \
+            | sort
 
       - name: Upload DEB
         uses: actions/upload-artifact@v4

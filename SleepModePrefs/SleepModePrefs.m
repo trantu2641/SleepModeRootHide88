@@ -5,12 +5,6 @@
 
 #import "SleepModeTimeoutController.h"
 
-static NSString * const kSleepModeEnabledKey =
-    @"SleepModeEnabled";
-
-static NSString * const kSleepModeTimeoutKey =
-    @"SleepModeTimeout";
-
 static NSString * const kSleepModeChangedNotification =
     @"com.trantu.sleepmode.settingsChanged";
 
@@ -43,8 +37,7 @@ static NSString * const kSleepModeChangedNotification =
 
         [group setProperty:
             @"Tự động khóa iPhone và đóng ứng dụng sau thời gian không sử dụng."
-            forKey:
-                @"footerText"];
+            forKey:@"footerText"];
 
         [items addObject:group];
 
@@ -52,33 +45,23 @@ static NSString * const kSleepModeChangedNotification =
             [PSSpecifier preferenceSpecifierNamed:
                 @"Bật SleepMode"
                 target:self
-                set:@selector(
-                    setPreferenceValue:specifier:)
-                get:@selector(
-                    readPreferenceValue:specifier:)
+                set:@selector(setPreferenceValue:specifier:)
+                get:@selector(readPreferenceValue:)
                 detail:nil
                 cell:PSSwitchCell
                 edit:nil];
 
         [enabled setProperty:
-            kSleepModeEnabledKey
-            forKey:
-                @"key"];
+            @"SleepModeEnabled"
+            forKey:@"key"];
 
         [enabled setProperty:
             @YES
-            forKey:
-                @"default"];
+            forKey:@"default"];
 
         [enabled setProperty:
             @YES
-            forKey:
-                @"enabled"];
-
-        [enabled setProperty:
-            kSleepModeChangedNotification
-            forKey:
-                @"PostNotification"];
+            forKey:@"enabled"];
 
         [items addObject:enabled];
 
@@ -88,20 +71,17 @@ static NSString * const kSleepModeChangedNotification =
                 target:self
                 set:nil
                 get:nil
-                detail:
-                    [SleepModeTimeoutController class]
+                detail:[SleepModeTimeoutController class]
                 cell:PSLinkCell
                 edit:nil];
 
         [timeout setProperty:
             @YES
-            forKey:
-                @"enabled"];
+            forKey:@"enabled"];
 
         [timeout setProperty:
             @YES
-            forKey:
-                @"isController"];
+            forKey:@"isController"];
 
         [items addObject:timeout];
 
@@ -112,21 +92,15 @@ static NSString * const kSleepModeChangedNotification =
     return _specifiers;
 }
 
-- (id)readPreferenceValue:
-    (PSSpecifier *)specifier
+- (id)readPreferenceValue:(PSSpecifier *)specifier
 {
     NSString *key =
-        [specifier propertyForKey:
-            @"key"];
+        [specifier propertyForKey:@"key"];
 
     if (key.length == 0) {
         return nil;
     }
 
-    /*
-     * Khớp core 1.3.0:
-     * standardUserDefaults
-     */
     NSUserDefaults *defaults =
         [NSUserDefaults standardUserDefaults];
 
@@ -137,18 +111,14 @@ static NSString * const kSleepModeChangedNotification =
         return value;
     }
 
-    return [specifier propertyForKey:
-        @"default"];
+    return [specifier propertyForKey:@"default"];
 }
 
-- (void)setPreferenceValue:
-    (id)value
-    specifier:
-        (PSSpecifier *)specifier
+- (void)setPreferenceValue:(id)value
+                  specifier:(PSSpecifier *)specifier
 {
     NSString *key =
-        [specifier propertyForKey:
-            @"key"];
+        [specifier propertyForKey:@"key"];
 
     if (key.length == 0) {
         return;
@@ -158,28 +128,22 @@ static NSString * const kSleepModeChangedNotification =
         [NSUserDefaults standardUserDefaults];
 
     if (value != nil) {
-
-        [defaults setObject:
-            value
-            forKey:
-                key];
-
+        [defaults setObject:value
+                     forKey:key];
     } else {
-
-        [defaults removeObjectForKey:
-            key];
+        [defaults removeObjectForKey:key];
     }
 
     [defaults synchronize];
 
-    /*
-     * Giữ notification để các phần đang dùng
-     * notification hiện tại không bị mất.
-     */
-    [[NSNotificationCenter defaultCenter]
-        postNotificationName:
-            kSleepModeChangedNotification
-        object:nil];
+    CFNotificationCenterPostNotification(
+        CFNotificationCenterGetDarwinNotifyCenter(),
+        (__bridge CFStringRef)
+            kSleepModeChangedNotification,
+        NULL,
+        NULL,
+        YES
+    );
 
     [self reloadSpecifier:specifier];
 }
@@ -188,8 +152,7 @@ static NSString * const kSleepModeChangedNotification =
 {
     [super viewDidLoad];
 
-    self.title =
-        @"SleepMode";
+    self.title = @"SleepMode";
 }
 
 @end

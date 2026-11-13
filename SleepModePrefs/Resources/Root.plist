@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
-"http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+ "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 
 <plist version="1.0">
 <dict>
@@ -18,6 +18,7 @@
             <key>FooterText</key>
             <string>Tự động khóa iPhone và đóng ứng dụng sau thời gian không sử dụng.</string>
         </dict>
+
 
         <dict>
             <key>Type</key>
@@ -39,47 +40,19 @@
             <string>com.trantu.sleepmode.settingsChanged</string>
         </dict>
 
+
         <dict>
             <key>Type</key>
-            <string>PSLinkListCell</string>
+            <string>PSLinkCell</string>
 
             <key>Title</key>
             <string>Tự động khóa sau</string>
 
-            <key>Key</key>
-            <string>SleepModeTimeout</string>
-
-            <key>DefaultValue</key>
-            <integer>300</integer>
-
-            <key>Defaults</key>
-            <string>com.trantu.sleepmode</string>
-
             <key>Detail</key>
-            <string>PSListItemsController</string>
+            <string>SleepModeTimeoutController</string>
 
-            <key>ValidTitles</key>
-            <array>
-                <string>1 phút</string>
-                <string>5 phút</string>
-                <string>15 phút</string>
-                <string>30 phút</string>
-                <string>1 giờ</string>
-                <string>2 giờ</string>
-            </array>
-
-            <key>ValidValues</key>
-            <array>
-                <integer>60</integer>
-                <integer>300</integer>
-                <integer>900</integer>
-                <integer>1800</integer>
-                <integer>3600</integer>
-                <integer>7200</integer>
-            </array>
-
-            <key>PostNotification</key>
-            <string>com.trantu.sleepmode.settingsChanged</string>
+            <key>IsController</key>
+            <true/>
         </dict>
 
     </array>

@@ -4,10 +4,10 @@
 #import <Preferences/PSSpecifier.h>
 #import <CoreFoundation/CoreFoundation.h>
 
-static NSString * const kSleepModeDomain =
+static NSString * const kDomain =
     @"com.trantu.sleepmode";
 
-static NSString * const kSleepModeChangedNotification =
+static NSString * const kChangedNotification =
     @"com.trantu.sleepmode.settingsChanged";
 
 @interface SleepModePrefsListController : PSListController
@@ -26,36 +26,30 @@ static NSString * const kSleepModeChangedNotification =
     return self;
 }
 
+#pragma mark - Specifiers
+
 - (NSArray *)specifiers
 {
     if (_specifiers == nil) {
 
-        NSMutableArray *items =
+        NSMutableArray *specifiers =
             [NSMutableArray array];
 
-
         /*
-         * ==================================================
-         * GROUP
-         * ==================================================
+         * Nhóm giới thiệu
          */
-
         PSSpecifier *group =
             [PSSpecifier groupSpecifierWithName:@"SleepMode"];
 
         [group setProperty:
-            @"Tự động khóa và đóng ứng dụng sau thời gian không sử dụng."
+            @"Tự động khóa iPhone và đóng ứng dụng sau thời gian không sử dụng."
             forKey:@"footerText"];
 
-        [items addObject:group];
-
+        [specifiers addObject:group];
 
         /*
-         * ==================================================
-         * ENABLE
-         * ==================================================
+         * Bật / tắt SleepMode
          */
-
         PSSpecifier *enabled =
             [PSSpecifier preferenceSpecifierNamed:
                 @"Bật SleepMode"
@@ -71,7 +65,7 @@ static NSString * const kSleepModeChangedNotification =
             forKey:@"key"];
 
         [enabled setProperty:
-            kSleepModeDomain
+            kDomain
             forKey:@"defaults"];
 
         [enabled setProperty:
@@ -79,18 +73,14 @@ static NSString * const kSleepModeChangedNotification =
             forKey:@"default"];
 
         [enabled setProperty:
-            kSleepModeChangedNotification
+            kChangedNotification
             forKey:@"PostNotification"];
 
-        [items addObject:enabled];
-
+        [specifiers addObject:enabled];
 
         /*
-         * ==================================================
-         * TIMEOUT
-         * ==================================================
+         * Thời gian tự động khóa
          */
-
         PSSpecifier *timeout =
             [PSSpecifier preferenceSpecifierNamed:
                 @"Tự động khóa sau"
@@ -106,7 +96,7 @@ static NSString * const kSleepModeChangedNotification =
             forKey:@"key"];
 
         [timeout setProperty:
-            kSleepModeDomain
+            kDomain
             forKey:@"defaults"];
 
         [timeout setProperty:
@@ -136,31 +126,31 @@ static NSString * const kSleepModeChangedNotification =
             forKey:@"values"];
 
         [timeout setProperty:
-            kSleepModeChangedNotification
+            kChangedNotification
             forKey:@"PostNotification"];
 
-        [items addObject:timeout];
+        [specifiers addObject:timeout];
 
-
-        _specifiers = [items mutableCopy];
-
-        NSLog(
-            @"[SleepModePrefs] loaded %lu specifiers",
-            (unsigned long)_specifiers.count
-        );
+        _specifiers = [specifiers mutableCopy];
     }
 
     return _specifiers;
 }
+
+#pragma mark - Read
 
 - (id)readPreferenceValue:(PSSpecifier *)specifier
 {
     NSString *key =
         [specifier propertyForKey:@"key"];
 
+    if (key == nil) {
+        return nil;
+    }
+
     NSUserDefaults *defaults =
         [[NSUserDefaults alloc]
-            initWithSuiteName:kSleepModeDomain];
+            initWithSuiteName:kDomain];
 
     id value =
         [defaults objectForKey:key];
@@ -173,22 +163,25 @@ static NSString * const kSleepModeChangedNotification =
     return value;
 }
 
+#pragma mark - Write
+
 - (void)setPreferenceValue:(id)value
                   specifier:(PSSpecifier *)specifier
 {
     NSString *key =
         [specifier propertyForKey:@"key"];
 
-    if (!key) {
+    if (key == nil) {
         return;
     }
 
     NSUserDefaults *defaults =
         [[NSUserDefaults alloc]
-            initWithSuiteName:kSleepModeDomain];
+            initWithSuiteName:kDomain];
 
     if (value != nil) {
-        [defaults setObject:value forKey:key];
+        [defaults setObject:value
+                     forKey:key];
     } else {
         [defaults removeObjectForKey:key];
     }
@@ -197,8 +190,7 @@ static NSString * const kSleepModeChangedNotification =
 
     CFNotificationCenterPostNotification(
         CFNotificationCenterGetDarwinNotifyCenter(),
-        (__bridge CFStringRef)
-            kSleepModeChangedNotification,
+        (__bridge CFStringRef)kChangedNotification,
         NULL,
         NULL,
         YES
@@ -206,6 +198,8 @@ static NSString * const kSleepModeChangedNotification =
 
     [self reloadSpecifier:specifier];
 }
+
+#pragma mark - View
 
 - (void)viewDidLoad
 {

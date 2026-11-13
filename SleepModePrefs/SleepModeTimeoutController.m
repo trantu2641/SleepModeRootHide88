@@ -6,16 +6,13 @@
 
 #import "SleepModeTimeoutController.h"
 
-
 static NSString * const kSleepModeDomain =
     @"com.trantu.sleepmode";
 
 static NSString * const kSleepModeChangedNotification =
     @"com.trantu.sleepmode.settingsChanged";
 
-
 @implementation SleepModeTimeoutController
-
 
 - (instancetype)init
 {
@@ -28,16 +25,10 @@ static NSString * const kSleepModeChangedNotification =
     return self;
 }
 
-
-#pragma mark - Specifiers
-
 - (NSArray *)specifiers
 {
     if (_specifiers == nil) {
-
-        NSMutableArray *items =
-            [NSMutableArray array];
-
+        NSMutableArray *items = [NSMutableArray array];
 
         PSSpecifier *group =
             [PSSpecifier groupSpecifierWithName:@"THỜI GIAN"];
@@ -48,16 +39,6 @@ static NSString * const kSleepModeChangedNotification =
 
         [items addObject:group];
 
-
-        /*
-         * 15 giây
-         * 1 phút
-         * 5 phút
-         * 15 phút
-         * 30 phút
-         * 1 giờ
-         * 2 giờ
-         */
         NSArray *titles = @[
             @"15 giây",
             @"1 phút",
@@ -78,142 +59,93 @@ static NSString * const kSleepModeChangedNotification =
             @7200
         ];
 
-
-        for (NSUInteger i = 0;
-             i < titles.count;
-             i++) {
-
+        for (NSUInteger i = 0; i < titles.count; i++) {
             PSSpecifier *item =
-                [PSSpecifier preferenceSpecifierNamed:
-                    titles[i]
-                    target:self
-                    set:nil
-                    get:nil
-                    detail:nil
-                    cell:PSLinkCell
-                    edit:nil];
+                [PSSpecifier preferenceSpecifierNamed:titles[i]
+                                                target:self
+                                                   set:nil
+                                                   get:nil
+                                                detail:nil
+                                                  cell:PSLinkCell
+                                                   edit:nil];
 
-            [item setProperty:
-                @YES
-                forKey:@"enabled"];
-
-            [item setProperty:
-                values[i]
-                forKey:@"timeoutValue"];
-
+            [item setProperty:@YES forKey:@"enabled"];
+            [item setProperty:values[i] forKey:@"timeoutValue"];
             [items addObject:item];
         }
 
-
-        _specifiers =
-            [items mutableCopy];
+        _specifiers = [items mutableCopy];
     }
 
     return _specifiers;
 }
 
-
-#pragma mark - Current Timeout
-
 - (NSInteger)currentTimeout
 {
     NSUserDefaults *defaults =
-        [[NSUserDefaults alloc]
-            initWithSuiteName:kSleepModeDomain];
+        [[NSUserDefaults alloc] initWithSuiteName:kSleepModeDomain];
 
-    NSNumber *value =
-        [defaults objectForKey:@"SleepModeTimeout"];
+    NSNumber *value = [defaults objectForKey:@"SleepModeTimeout"];
 
     if (value == nil) {
-        return 300;
+        return 15;
     }
 
-    return [value integerValue];
+    NSInteger timeout = [value integerValue];
+
+    if (timeout < 15 || timeout > 7200) {
+        return 15;
+    }
+
+    return timeout;
 }
-
-
-#pragma mark - Cell
 
 - (UITableViewCell *)tableView:(UITableView *)tableView
          cellForRowAtIndexPath:(NSIndexPath *)indexPath
 {
     UITableViewCell *cell =
-        [super tableView:tableView
-   cellForRowAtIndexPath:indexPath];
+        [super tableView:tableView cellForRowAtIndexPath:indexPath];
 
-    PSSpecifier *specifier =
-        [self specifierAtIndexPath:indexPath];
+    PSSpecifier *specifier = [self specifierAtIndexPath:indexPath];
+    NSNumber *timeout = [specifier propertyForKey:@"timeoutValue"];
 
-    NSNumber *timeout =
-        [specifier propertyForKey:@"timeoutValue"];
-
-    if (timeout != nil &&
-        [timeout integerValue] == [self currentTimeout]) {
-
-        cell.accessoryType =
-            UITableViewCellAccessoryCheckmark;
-
+    if (timeout != nil && [timeout integerValue] == [self currentTimeout]) {
+        cell.accessoryType = UITableViewCellAccessoryCheckmark;
     } else {
-
-        cell.accessoryType =
-            UITableViewCellAccessoryNone;
+        cell.accessoryType = UITableViewCellAccessoryNone;
     }
 
     return cell;
 }
 
-
-#pragma mark - Select
-
 - (void)tableView:(UITableView *)tableView
  didSelectRowAtIndexPath:(NSIndexPath *)indexPath
 {
-    PSSpecifier *specifier =
-        [self specifierAtIndexPath:indexPath];
-
-    NSNumber *timeout =
-        [specifier propertyForKey:@"timeoutValue"];
+    PSSpecifier *specifier = [self specifierAtIndexPath:indexPath];
+    NSNumber *timeout = [specifier propertyForKey:@"timeoutValue"];
 
     if (timeout != nil) {
-
         NSUserDefaults *defaults =
-            [[NSUserDefaults alloc]
-                initWithSuiteName:kSleepModeDomain];
+            [[NSUserDefaults alloc] initWithSuiteName:kSleepModeDomain];
 
-        [defaults setObject:
-            timeout
-            forKey:@"SleepModeTimeout"];
-
+        [defaults setObject:timeout forKey:@"SleepModeTimeout"];
         [defaults synchronize];
-
 
         CFNotificationCenterPostNotification(
             CFNotificationCenterGetDarwinNotifyCenter(),
-            (__bridge CFStringRef)
-                kSleepModeChangedNotification,
+            (__bridge CFStringRef)kSleepModeChangedNotification,
             NULL,
             NULL,
             YES
         );
 
-
         [tableView reloadData];
-
-
-        [tableView deselectRowAtIndexPath:
-            indexPath
-            animated:YES];
-
-
-        [self.navigationController
-            popViewControllerAnimated:YES];
-
+        [tableView deselectRowAtIndexPath:indexPath animated:YES];
+        [self.navigationController popViewControllerAnimated:YES];
         return;
     }
 
-
-    [super tableView:tableView
-        didSelectRowAtIndexPath:indexPath];
+    [super tableView:tableView didSelectRowAtIndexPath:indexPath];
 }
 
 @end

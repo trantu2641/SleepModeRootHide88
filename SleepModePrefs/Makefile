@@ -27,8 +27,4 @@ SleepModePrefs_INSTALL_PATH = \
 SleepModePrefs_RESOURCE_DIRS = \
     Resources
 
-SleepModePrefs_RESOURCE_FILES = \
-    Root.plist
-
 include $(THEOS_MAKE_PATH)/bundle.mk
-include $(THEOS_MAKE_PATH)/package.mk

@@ -1,66 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
- "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+"http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+
 <plist version="1.0">
 <dict>
     <key>PreferenceSpecifiers</key>
-    <array>
-        <dict>
-            <key>Type</key>
-            <string>PSGroupCell</string>
-            <key>Title</key>
-            <string>SleepMode</string>
-            <key>FooterText</key>
-            <string>Tự động khóa và đóng ứng dụng sau thời gian không sử dụng.</string>
-        </dict>
-
-        <dict>
-            <key>Type</key>
-            <string>PSSwitchCell</string>
-            <key>Title</key>
-            <string>Bật SleepMode</string>
-            <key>Key</key>
-            <string>SleepModeEnabled</string>
-            <key>DefaultValue</key>
-            <true/>
-            <key>Defaults</key>
-            <string>com.trantu.sleepmode</string>
-            <key>PostNotification</key>
-            <string>com.trantu.sleepmode.settingsChanged</string>
-        </dict>
-
-        <dict>
-            <key>Type</key>
-            <string>PSLinkListCell</string>
-            <key>Title</key>
-            <string>Tự động khóa sau</string>
-            <key>Key</key>
-            <string>SleepModeTimeout</string>
-            <key>DefaultValue</key>
-            <integer>300</integer>
-            <key>Defaults</key>
-            <string>com.trantu.sleepmode</string>
-            <key>Titles</key>
-            <array>
-                <string>1 phút</string>
-                <string>5 phút</string>
-                <string>15 phút</string>
-                <string>30 phút</string>
-                <string>1 giờ</string>
-                <string>2 giờ</string>
-            </array>
-            <key>Values</key>
-            <array>
-                <integer>60</integer>
-                <integer>300</integer>
-                <integer>900</integer>
-                <integer>1800</integer>
-                <integer>3600</integer>
-                <integer>7200</integer>
-            </array>
-            <key>PostNotification</key>
-            <string>com.trantu.sleepmode.settingsChanged</string>
-        </dict>
-    </array>
+    <array/>
 </dict>
 </plist>

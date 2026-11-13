@@ -323,3 +323,228 @@ static void SMSettingsChangedCallback(
     _timer = nil;
 
     /* Giữ nguyên cơ chế đóng ứng dụng hiện tại. */
+    [self terminateUserApps];
+
+    /* Khóa sau 0.15 giây như source hiện tại. */
+    dispatch_after(
+        dispatch_time(DISPATCH_TIME_NOW,
+                      (int64_t)(0.15 * NSEC_PER_SEC)),
+        dispatch_get_main_queue(),
+        ^{
+            @autoreleasepool {
+                if (!self->_enabled || !self->_started) {
+                    return;
+                }
+
+                [self lockDevice];
+            }
+        }
+    );
+}
+
+
+#pragma mark - Settings Changed
+
+- (void)handleSettingsChanged
+{
+    dispatch_async(dispatch_get_main_queue(), ^{
+        @autoreleasepool {
+            [self loadPreferences];
+
+            if (self->_enabled) {
+                [self start];
+            } else {
+                [self stop];
+            }
+        }
+    });
+}
+
+
+#pragma mark - Lock Device
+
+- (void)lockDevice
+{
+    @autoreleasepool {
+        Class SBBackBoardController =
+            objc_getClass("SBBackBoardController");
+
+        if (SBBackBoardController != Nil) {
+            SEL sharedSelector = NSSelectorFromString(@"sharedInstance");
+
+            if ([SBBackBoardController respondsToSelector:sharedSelector]) {
+                id controller =
+                    ((id (*)(id, SEL))objc_msgSend)(
+                        SBBackBoardController,
+                        sharedSelector
+                    );
+
+                SEL lockSelector = NSSelectorFromString(@"lockScreen");
+
+                if ([controller respondsToSelector:lockSelector]) {
+                    ((void (*)(id, SEL))objc_msgSend)(
+                        controller,
+                        lockSelector
+                    );
+
+                    return;
+                }
+            }
+        }
+
+        /* Fallback giữ nguyên. */
+        UIApplication *application = [UIApplication sharedApplication];
+        SEL fallbackSelector = NSSelectorFromString(@"_lockScreen");
+
+        if ([application respondsToSelector:fallbackSelector]) {
+            ((void (*)(id, SEL))objc_msgSend)(
+                application,
+                fallbackSelector
+            );
+        }
+    }
+}
+
+
+#pragma mark - Terminate User Apps
+
+- (void)terminateUserApps
+{
+    @autoreleasepool {
+        Class SBApplicationController = objc_getClass("SBApplicationController");
+
+        if (SBApplicationController == Nil) {
+            return;
+        }
+
+        SEL sharedSelector = NSSelectorFromString(@"sharedInstance");
+
+        if (![SBApplicationController respondsToSelector:sharedSelector]) {
+            return;
+        }
+
+        id appController =
+            ((id (*)(id, SEL))objc_msgSend)(
+                SBApplicationController,
+                sharedSelector
+            );
+
+        if (appController == nil) {
+            return;
+        }
+
+        SEL applicationsSelector = NSSelectorFromString(@"applications");
+
+        if (![appController respondsToSelector:applicationsSelector]) {
+            return;
+        }
+
+        id applications =
+            ((id (*)(id, SEL))objc_msgSend)(
+                appController,
+                applicationsSelector
+            );
+
+        if (![applications isKindOfClass:[NSArray class]]) {
+            return;
+        }
+
+        Class FBSystemService = objc_getClass("FBSystemService");
+
+        if (FBSystemService == Nil) {
+            return;
+        }
+
+        SEL fbSharedSelector = NSSelectorFromString(@"sharedInstance");
+
+        if (![FBSystemService respondsToSelector:fbSharedSelector]) {
+            return;
+        }
+
+        id service =
+            ((id (*)(id, SEL))objc_msgSend)(
+                FBSystemService,
+                fbSharedSelector
+            );
+
+        if (service == nil) {
+            return;
+        }
+
+        SEL terminateSelector =
+            NSSelectorFromString(@"terminateApplication:forReason:andReport:");
+
+        if (![service respondsToSelector:terminateSelector]) {
+            return;
+        }
+
+        for (id application in applications) {
+            @autoreleasepool {
+                SEL bundleIdentifierSelector =
+                    NSSelectorFromString(@"bundleIdentifier");
+
+                if (![application respondsToSelector:bundleIdentifierSelector]) {
+                    continue;
+                }
+
+                NSString *bundleIdentifier =
+                    ((id (*)(id, SEL))objc_msgSend)(
+                        application,
+                        bundleIdentifierSelector
+                    );
+
+                if (bundleIdentifier.length == 0) {
+                    continue;
+                }
+
+                if ([bundleIdentifier isEqualToString:@"com.apple.springboard"]) {
+                    continue;
+                }
+
+                if ([bundleIdentifier isEqualToString:@"com.apple.Preferences"]) {
+                    continue;
+                }
+
+                if ([bundleIdentifier hasPrefix:@"com.apple.SafariViewService"]) {
+                    continue;
+                }
+
+                if ([bundleIdentifier hasPrefix:@"com.apple.WebKit"]) {
+                    continue;
+                }
+
+                ((void (*)(id, SEL, id, int, BOOL))objc_msgSend)(
+                    service,
+                    terminateSelector,
+                    application,
+                    5,
+                    NO
+                );
+            }
+        }
+    }
+}
+
+@end
+
+
+#pragma mark - Darwin Callback
+
+static void SMSettingsChangedCallback(
+    CFNotificationCenterRef center,
+    void *observer,
+    CFStringRef name,
+    const void *object,
+    CFDictionaryRef userInfo
+)
+{
+    @autoreleasepool {
+        SleepManager *manager = (__bridge SleepManager *)observer;
+
+        if (manager == nil) {
+            return;
+        }
+
+        [manager handleSettingsChanged];
+    }
+}

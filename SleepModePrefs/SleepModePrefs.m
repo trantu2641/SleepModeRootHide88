@@ -4,16 +4,14 @@
 #import <Preferences/PSSpecifier.h>
 #import <CoreFoundation/CoreFoundation.h>
 
+#import "SleepModeTimeoutController.h"
+
 
 static NSString * const kSleepModeDomain =
     @"com.trantu.sleepmode";
 
 static NSString * const kSleepModeChangedNotification =
     @"com.trantu.sleepmode.settingsChanged";
-
-
-#pragma mark -
-#pragma mark SleepMode Main Controller
 
 
 @interface SleepModePrefsListController : PSListController
@@ -60,7 +58,7 @@ static NSString * const kSleepModeChangedNotification =
 
 
         // ==================================================
-        // BẬT / TẮT SLEEPMODE
+        // BẬT / TẮT
         // ==================================================
 
         PSSpecifier *enabled =
@@ -106,11 +104,13 @@ static NSString * const kSleepModeChangedNotification =
                 target:self
                 set:nil
                 get:nil
-                detail:NSClassFromString(
-                    @"SleepModeTimeoutController"
-                )
+                detail:[SleepModeTimeoutController class]
                 cell:PSLinkCell
                 edit:nil];
+
+        [timeout setProperty:
+            @YES
+            forKey:@"enabled"];
 
         [timeout setProperty:
             @YES
@@ -131,7 +131,7 @@ static NSString * const kSleepModeChangedNotification =
 }
 
 
-#pragma mark - Read Preference
+#pragma mark - Read
 
 - (id)readPreferenceValue:(PSSpecifier *)specifier
 {
@@ -159,7 +159,7 @@ static NSString * const kSleepModeChangedNotification =
 }
 
 
-#pragma mark - Write Preference
+#pragma mark - Write
 
 - (void)setPreferenceValue:(id)value
                   specifier:(PSSpecifier *)specifier
@@ -191,10 +191,6 @@ static NSString * const kSleepModeChangedNotification =
 
     [defaults synchronize];
 
-
-    // ==================================================
-    // BÁO CHO SLEEPMANAGER RELOAD NGAY
-    // ==================================================
 
     CFNotificationCenterPostNotification(
         CFNotificationCenterGetDarwinNotifyCenter(),

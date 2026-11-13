@@ -4,9 +4,6 @@
 #import "SleepManager.h"
 
 
-#pragma mark -
-#pragma mark SpringBoard
-
 @interface SpringBoard : UIApplication
 @end
 
@@ -14,19 +11,14 @@
 %hook SpringBoard
 
 
-#pragma mark -
-#pragma mark Launch
-
 - (void)applicationDidFinishLaunching:(UIApplication *)application
 {
     %orig;
 
 
     /*
-     * Không khởi tạo SleepManager trực tiếp trong
-     * launch callback.
-     *
-     * Chờ SpringBoard ổn định rồi mới khởi động.
+     * Không làm gì trong launch callback.
+     * Chỉ lên lịch khởi động SleepMode sau 3 giây.
      */
 
     dispatch_after(
@@ -48,25 +40,18 @@
                     [SleepManager sharedInstance];
 
 
+                NSLog(
+                    @"[SleepMode] enabled=%@ timeout=%.0f",
+                    manager.enabled
+                        ? @"YES"
+                        : @"NO",
+                    manager.timeout
+                );
+
+
                 if (manager.enabled) {
 
-                    NSLog(
-                        @"[SleepMode] enabled = YES"
-                    );
-
-                    NSLog(
-                        @"[SleepMode] timeout = %.0f",
-                        manager.timeout
-                    );
-
-
                     [manager start];
-
-                } else {
-
-                    NSLog(
-                        @"[SleepMode] enabled = NO"
-                    );
                 }
             }
         }
@@ -79,14 +64,6 @@
 
 - (void)sendEvent:(UIEvent *)event
 {
-    /*
-     * Chỉ reset khi có touch mới bắt đầu.
-     *
-     * Không reset ở TouchMoved / TouchEnded,
-     * tránh việc đang giữ ngón tay khiến timer
-     * bị tạo lại liên tục.
-     */
-
     if (event &&
         event.type == UIEventTypeTouches) {
 
@@ -94,7 +71,7 @@
             event.allTouches;
 
 
-        BOOL beganTouch =
+        BOOL began =
             NO;
 
 
@@ -104,15 +81,14 @@
             if (touch.phase ==
                 UITouchPhaseBegan) {
 
-                beganTouch =
-                    YES;
+                began = YES;
 
                 break;
             }
         }
 
 
-        if (beganTouch) {
+        if (began) {
 
             SleepManager *manager =
                 [SleepManager sharedInstance];

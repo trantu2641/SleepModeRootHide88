@@ -120,12 +120,9 @@ static NSString * const kSleepModeChangedNotification =
             @YES
             forKey:@"enabled"];
 
-        /*
-         * PSLinkListCell cần values + titleDictionary.
-         *
-         * Không truy cập timeout.values bằng property
-         * vì SDK Theos hiện tại không khai báo property đó.
-         */
+        // --------------------------------------------------
+        // Giá trị
+        // --------------------------------------------------
 
         NSArray *values = @[
             @60,
@@ -136,6 +133,10 @@ static NSString * const kSleepModeChangedNotification =
             @7200
         ];
 
+        // --------------------------------------------------
+        // Tên hiển thị
+        // --------------------------------------------------
+
         NSArray *titles = @[
             @"1 phút",
             @"5 phút",
@@ -145,22 +146,15 @@ static NSString * const kSleepModeChangedNotification =
             @"2 giờ"
         ];
 
-        NSDictionary *titleDictionary =
-            [NSDictionary dictionaryWithObjects:
-                titles
-                forKeys:values];
-
+        // PSLinkListCell / PSListItemsController
+        // dùng validValues + validTitles.
         [timeout setProperty:
             values
-            forKey:@"values"];
+            forKey:@"validValues"];
 
         [timeout setProperty:
-            titleDictionary
-            forKey:@"titleDictionary"];
-
-        [timeout setProperty:
-            titleDictionary
-            forKey:@"titles"];
+            titles
+            forKey:@"validTitles"];
 
         [timeout setProperty:
             kSleepModeChangedNotification
@@ -236,9 +230,9 @@ static NSString * const kSleepModeChangedNotification =
     [defaults synchronize];
 
 
-    // ==================================================
-    // NOTIFY SLEEPMANAGER NGAY LẬP TỨC
-    // ==================================================
+    // ------------------------------------------------------
+    // Báo cho SleepManager reload ngay lập tức
+    // ------------------------------------------------------
 
     CFNotificationCenterPostNotification(
         CFNotificationCenterGetDarwinNotifyCenter(),
@@ -250,6 +244,7 @@ static NSString * const kSleepModeChangedNotification =
     );
 
 
+    // Cập nhật dòng đang hiển thị
     [self reloadSpecifier:specifier];
 }
 

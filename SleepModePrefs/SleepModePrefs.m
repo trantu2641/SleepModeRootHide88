@@ -1,5 +1,6 @@
 #import <UIKit/UIKit.h>
 #import <Foundation/Foundation.h>
+
 #import <Preferences/PSListController.h>
 #import <Preferences/PSSpecifier.h>
 
@@ -27,11 +28,15 @@ static NSString * const kChangedNotification =
     self = [super init];
 
     if (self) {
-        self.title = @"SleepMode";
+        self.title =
+            @"SleepMode";
     }
 
     return self;
 }
+
+
+#pragma mark - Specifiers
 
 
 - (NSArray *)specifiers
@@ -117,23 +122,34 @@ static NSString * const kChangedNotification =
 }
 
 
+#pragma mark - Settings
+
+
 - (NSDictionary *)loadSettings
 {
     NSDictionary *settings =
-        [NSDictionary dictionaryWithContentsOfFile:kPrefsPath];
+        [NSDictionary dictionaryWithContentsOfFile:
+            kPrefsPath];
 
-    if (![settings isKindOfClass:[NSDictionary class]]) {
+
+    if (![settings isKindOfClass:
+            [NSDictionary class]]) {
+
         return @{};
     }
+
 
     return settings;
 }
 
 
-- (id)readPreferenceValue:(PSSpecifier *)specifier
+- (id)readPreferenceValue:
+        (PSSpecifier *)specifier
 {
     NSString *key =
-        [specifier propertyForKey:@"key"];
+        [specifier propertyForKey:
+            @"key"];
+
 
     if (key.length == 0) {
         return nil;
@@ -153,15 +169,19 @@ static NSString * const kChangedNotification =
     }
 
 
-    return [specifier propertyForKey:@"default"];
+    return [specifier propertyForKey:
+        @"default"];
 }
 
 
-- (void)setPreferenceValue:(id)value
-                  specifier:(PSSpecifier *)specifier
+- (void)setPreferenceValue:
+        (id)value
+    specifier:
+        (PSSpecifier *)specifier
 {
     NSString *key =
-        [specifier propertyForKey:@"key"];
+        [specifier propertyForKey:
+            @"key"];
 
 
     if (key.length == 0) {
@@ -170,10 +190,12 @@ static NSString * const kChangedNotification =
 
 
     NSMutableDictionary *settings =
-        [[self loadSettings] mutableCopy];
+        [[self loadSettings]
+            mutableCopy];
 
 
     if (settings == nil) {
+
         settings =
             [NSMutableDictionary dictionary];
     }
@@ -186,7 +208,8 @@ static NSString * const kChangedNotification =
 
     } else {
 
-        [settings removeObjectForKey:key];
+        [settings removeObjectForKey:
+            key];
     }
 
 
@@ -195,6 +218,9 @@ static NSString * const kChangedNotification =
         atomically:YES];
 
 
+    /*
+     * Core SleepMode nhận thay đổi ngay lập tức.
+     */
     CFNotificationCenterPostNotification(
         CFNotificationCenterGetDarwinNotifyCenter(),
         (__bridge CFStringRef)
@@ -205,7 +231,8 @@ static NSString * const kChangedNotification =
     );
 
 
-    [self reloadSpecifier:specifier];
+    [self reloadSpecifier:
+        specifier];
 }
 
 
@@ -213,7 +240,8 @@ static NSString * const kChangedNotification =
 {
     [super viewDidLoad];
 
-    self.title = @"SleepMode";
+    self.title =
+        @"SleepMode";
 }
 
 

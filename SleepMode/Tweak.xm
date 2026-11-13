@@ -4,14 +4,11 @@
 #import "SleepManager.h"
 
 
-static SleepManager *SMManager(void)
-{
-    return [SleepManager sharedInstance];
-}
-
-
 #pragma mark -
 #pragma mark SpringBoard
+
+@interface SpringBoard : UIApplication
+@end
 
 
 %hook SpringBoard
@@ -22,53 +19,69 @@ static SleepManager *SMManager(void)
     %orig;
 
 
+    /*
+     * Không khởi tạo SleepManager trực tiếp
+     * trong quá trình SpringBoard đang launch.
+     *
+     * Chờ SpringBoard hoàn tất callback launch
+     * rồi mới khởi động SleepMode.
+     */
+
     dispatch_async(
         dispatch_get_main_queue(),
         ^{
 
-            SleepManager *manager =
-                SMManager();
+            dispatch_async(
+                dispatch_get_main_queue(),
+                ^{
+
+                    @autoreleasepool {
+
+                        SleepManager *manager =
+                            [SleepManager sharedInstance];
 
 
-            NSLog(
-                @"[SleepMode] SpringBoard launched"
+                        NSLog(
+                            @"[SleepMode] SpringBoard ready"
+                        );
+
+
+                        if (manager.enabled) {
+
+                            NSLog(
+                                @"[SleepMode] enabled = YES"
+                            );
+
+                            NSLog(
+                                @"[SleepMode] timeout = %.0f",
+                                manager.timeout
+                            );
+
+                            [manager start];
+
+                        } else {
+
+                            NSLog(
+                                @"[SleepMode] enabled = NO"
+                            );
+                        }
+                    }
+                }
             );
-
-
-            if (manager.enabled) {
-
-                NSLog(
-                    @"[SleepMode] enabled at launch, timeout=%.0f",
-                    manager.timeout
-                );
-
-                [manager start];
-
-            } else {
-
-                NSLog(
-                    @"[SleepMode] disabled at launch"
-                );
-            }
         }
     );
 }
 
 
-%end
-
-
 #pragma mark -
-#pragma mark Touch Detection
-
-
-%hook UIApplication
+#pragma mark Touch
 
 
 - (void)sendEvent:(UIEvent *)event
 {
     /*
-     * Chỉ xử lý touch event.
+     * Chỉ reset khi thực sự bắt đầu
+     * một thao tác chạm mới.
      */
 
     if (event &&
@@ -78,44 +91,37 @@ static SleepManager *SMManager(void)
             event.allTouches;
 
 
-        if (touches.count > 0) {
-
-            BOOL hasNewTouch =
-                NO;
+        BOOL beganTouch =
+            NO;
 
 
-            for (UITouch *touch
-                 in touches) {
+        for (UITouch *touch
+             in touches) {
 
-                /*
-                 * Chỉ reset timer khi có touch
-                 * mới bắt đầu.
-                 *
-                 * Không dùng Moved/Stationary,
-                 * tránh reset timer liên tục.
-                 */
+            if (touch.phase ==
+                UITouchPhaseBegan) {
 
-                if (touch.phase ==
-                    UITouchPhaseBegan) {
+                beganTouch =
+                    YES;
 
-                    hasNewTouch =
-                        YES;
-
-                    break;
-                }
+                break;
             }
+        }
 
 
-            if (hasNewTouch) {
+        if (beganTouch) {
 
-                SleepManager *manager =
-                    SMManager();
+            SleepManager *manager =
+                [SleepManager sharedInstance];
 
 
-                if (manager.enabled) {
+            if (manager.enabled) {
 
-                    [manager resetTimer];
-                }
+                NSLog(
+                    @"[SleepMode] touch -> reset timer"
+                );
+
+                [manager resetTimer];
             }
         }
     }
@@ -126,19 +132,3 @@ static SleepManager *SMManager(void)
 
 
 %end
-
-
-#pragma mark -
-#pragma mark Constructor
-
-
-%ctor
-{
-    /*
-     * SleepMode.plist chỉ inject vào:
-     *
-     * com.apple.springboard
-     *
-     * nên toàn bộ tweak này chạy trong SpringBoard.
-     */
-}

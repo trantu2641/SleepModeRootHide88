@@ -4,6 +4,7 @@
 #import <Preferences/PSSpecifier.h>
 #import <CoreFoundation/CoreFoundation.h>
 
+
 static NSString * const kSleepModeDomain =
     @"com.trantu.sleepmode";
 
@@ -11,11 +12,16 @@ static NSString * const kSleepModeChangedNotification =
     @"com.trantu.sleepmode.settingsChanged";
 
 
+#pragma mark -
+#pragma mark SleepMode Main Controller
+
+
 @interface SleepModePrefsListController : PSListController
 @end
 
 
 @implementation SleepModePrefsListController
+
 
 - (instancetype)init
 {
@@ -39,9 +45,9 @@ static NSString * const kSleepModeChangedNotification =
             [NSMutableArray array];
 
 
-        // ==========================================
+        // ==================================================
         // GROUP
-        // ==========================================
+        // ==================================================
 
         PSSpecifier *group =
             [PSSpecifier groupSpecifierWithName:@"SLEEPMODE"];
@@ -53,9 +59,9 @@ static NSString * const kSleepModeChangedNotification =
         [items addObject:group];
 
 
-        // ==========================================
+        // ==================================================
         // BẬT / TẮT SLEEPMODE
-        // ==========================================
+        // ==================================================
 
         PSSpecifier *enabled =
             [PSSpecifier preferenceSpecifierNamed:
@@ -90,9 +96,9 @@ static NSString * const kSleepModeChangedNotification =
         [items addObject:enabled];
 
 
-        // ==========================================
+        // ==================================================
         // TỰ ĐỘNG KHÓA SAU
-        // ==========================================
+        // ==================================================
 
         PSSpecifier *timeout =
             [PSSpecifier preferenceSpecifierNamed:
@@ -100,13 +106,11 @@ static NSString * const kSleepModeChangedNotification =
                 target:self
                 set:nil
                 get:nil
-                detail:nil
+                detail:NSClassFromString(
+                    @"SleepModeTimeoutController"
+                )
                 cell:PSLinkCell
                 edit:nil];
-
-        [timeout setProperty:
-            @"SleepModeTimeoutController"
-            forKey:@"detail"];
 
         [timeout setProperty:
             @YES
@@ -114,6 +118,10 @@ static NSString * const kSleepModeChangedNotification =
 
         [items addObject:timeout];
 
+
+        // ==================================================
+        // FINISH
+        // ==================================================
 
         _specifiers =
             [items mutableCopy];
@@ -123,7 +131,7 @@ static NSString * const kSleepModeChangedNotification =
 }
 
 
-#pragma mark - Read
+#pragma mark - Read Preference
 
 - (id)readPreferenceValue:(PSSpecifier *)specifier
 {
@@ -151,7 +159,7 @@ static NSString * const kSleepModeChangedNotification =
 }
 
 
-#pragma mark - Write
+#pragma mark - Write Preference
 
 - (void)setPreferenceValue:(id)value
                   specifier:(PSSpecifier *)specifier
@@ -183,6 +191,10 @@ static NSString * const kSleepModeChangedNotification =
 
     [defaults synchronize];
 
+
+    // ==================================================
+    // BÁO CHO SLEEPMANAGER RELOAD NGAY
+    // ==================================================
 
     CFNotificationCenterPostNotification(
         CFNotificationCenterGetDarwinNotifyCenter(),

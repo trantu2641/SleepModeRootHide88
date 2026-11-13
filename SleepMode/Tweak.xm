@@ -1,11 +1,9 @@
 #import <UIKit/UIKit.h>
 #import <Foundation/Foundation.h>
-#import <CoreFoundation/CoreFoundation.h>
 
 #import "SleepManager.h"
 
-static NSString * const kSleepModeTouchNotification =
-    @"com.trantu.sleepmode.touch";
+#pragma mark - Touch Reset
 
 %hook UIApplication
 
@@ -14,51 +12,33 @@ static NSString * const kSleepModeTouchNotification =
     %orig;
 
     /*
-     * Tuyệt đối không can thiệp vào event đang chạy.
-     *
-     * Chỉ thông báo cho SleepManager rằng vừa có
-     * một event cảm ứng xảy ra.
+     * Giữ đúng cơ chế của bản 1.3.0:
+     * nhận touch trong SpringBoard rồi gọi thẳng resetTimer.
+     * Không tạo Darwin notification cho từng touch.
      */
-    if (event != nil &&
-        [event type] == UIEventTypeTouches) {
+    if (event != nil && event.type == UIEventTypeTouches) {
+        SleepManager *manager = [SleepManager sharedInstance];
 
-        CFNotificationCenterPostNotification(
-            CFNotificationCenterGetDarwinNotifyCenter(),
-            (__bridge CFStringRef)
-                kSleepModeTouchNotification,
-            NULL,
-            NULL,
-            YES
-        );
+        if (manager.enabled) {
+            [manager resetTimer];
+        }
     }
 }
 
 %end
 
-%ctor
+#pragma mark - SpringBoard Startup
+
+%hook SpringBoard
+
+- (void)applicationDidFinishLaunching:(UIApplication *)application
 {
+    %orig;
+
     @autoreleasepool {
-
-        /*
-         * Chờ SpringBoard khởi động hoàn chỉnh.
-         * Không khởi tạo SleepManager trong lúc dylib
-         * vừa được inject.
-         */
-        dispatch_after(
-            dispatch_time(
-                DISPATCH_TIME_NOW,
-                (int64_t)(2.0 * NSEC_PER_SEC)
-            ),
-            dispatch_get_main_queue(),
-            ^{
-                @autoreleasepool {
-
-                    SleepManager *manager =
-                        [SleepManager sharedInstance];
-
-                    [manager start];
-                }
-            }
-        );
+        SleepManager *manager = [SleepManager sharedInstance];
+        [manager start];
     }
 }
+
+%end

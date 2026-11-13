@@ -49,7 +49,17 @@ static NSString * const kSleepModeChangedNotification =
         [items addObject:group];
 
 
+        /*
+         * 15 giây
+         * 1 phút
+         * 5 phút
+         * 15 phút
+         * 30 phút
+         * 1 giờ
+         * 2 giờ
+         */
         NSArray *titles = @[
+            @"15 giây",
             @"1 phút",
             @"5 phút",
             @"15 phút",
@@ -59,6 +69,7 @@ static NSString * const kSleepModeChangedNotification =
         ];
 
         NSArray *values = @[
+            @15,
             @60,
             @300,
             @900,
@@ -184,6 +195,9 @@ static NSString * const kSleepModeChangedNotification =
             NULL,
             YES
         );
+
+
+        [tableView reloadData];
 
 
         [tableView deselectRowAtIndexPath:

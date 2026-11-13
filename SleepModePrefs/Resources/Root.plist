@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="UTF-8"?>
++<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 
@@ -8,69 +8,57 @@
     <key>PreferenceSpecifiers</key>
     <array>
 
-
-        <!-- ================================================= -->
-        <!-- HEADER -->
-        <!-- ================================================= -->
-
         <dict>
             <key>Type</key>
             <string>PSGroupCell</string>
 
-            <key>Label</key>
-            <string>SLEEP MODE</string>
+            <key>Title</key>
+            <string>SleepMode</string>
 
             <key>FooterText</key>
-            <string>Tự động đóng ứng dụng đang chạy rồi khóa iPhone khi không có thao tác chạm.</string>
+            <string>Tự động khóa và đóng ứng dụng sau thời gian không sử dụng.</string>
         </dict>
-
-
-        <!-- ================================================= -->
-        <!-- ENABLE -->
-        <!-- ================================================= -->
 
         <dict>
             <key>Type</key>
             <string>PSSwitchCell</string>
 
-            <key>Label</key>
+            <key>Title</key>
             <string>Bật SleepMode</string>
-
-            <key>Defaults</key>
-            <string>com.trantu.sleepmode</string>
 
             <key>Key</key>
             <string>SleepModeEnabled</string>
 
-            <key>Default</key>
+            <key>DefaultValue</key>
             <true/>
+
+            <key>Defaults</key>
+            <string>com.trantu.sleepmode</string>
 
             <key>PostNotification</key>
             <string>com.trantu.sleepmode.settingsChanged</string>
         </dict>
 
-
-        <!-- ================================================= -->
-        <!-- TIMEOUT -->
-        <!-- ================================================= -->
-
         <dict>
             <key>Type</key>
             <string>PSLinkListCell</string>
 
-            <key>Label</key>
+            <key>Title</key>
             <string>Tự động khóa sau</string>
-
-            <key>Defaults</key>
-            <string>com.trantu.sleepmode</string>
 
             <key>Key</key>
             <string>SleepModeTimeout</string>
 
-            <key>Default</key>
-            <real>300</real>
+            <key>DefaultValue</key>
+            <integer>300</integer>
 
-            <key>ValidTitles</key>
+            <key>Defaults</key>
+            <string>com.trantu.sleepmode</string>
+
+            <key>PostNotification</key>
+            <string>com.trantu.sleepmode.settingsChanged</string>
+
+            <key>Titles</key>
             <array>
                 <string>1 phút</string>
                 <string>5 phút</string>
@@ -80,39 +68,18 @@
                 <string>2 giờ</string>
             </array>
 
-            <key>ValidValues</key>
+            <key>Values</key>
             <array>
-                <real>60</real>
-                <real>300</real>
-                <real>900</real>
-                <real>1800</real>
-                <real>3600</real>
-                <real>7200</real>
+                <integer>60</integer>
+                <integer>300</integer>
+                <integer>900</integer>
+                <integer>1800</integer>
+                <integer>3600</integer>
+                <integer>7200</integer>
             </array>
-
-            <key>PostNotification</key>
-            <string>com.trantu.sleepmode.settingsChanged</string>
         </dict>
-
-
-        <!-- ================================================= -->
-        <!-- FOOTER -->
-        <!-- ================================================= -->
-
-        <dict>
-            <key>Type</key>
-            <string>PSGroupCell</string>
-
-            <key>FooterText</key>
-            <string>Khi hết thời gian, SleepMode sẽ đóng ứng dụng người dùng trước khi khóa thiết bị.</string>
-        </dict>
-
 
     </array>
-
-
-    <key>title</key>
-    <string>SleepMode</string>
 
 </dict>
 </plist>

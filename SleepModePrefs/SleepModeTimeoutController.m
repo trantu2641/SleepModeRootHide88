@@ -2,15 +2,11 @@
 #import <Foundation/Foundation.h>
 #import <Preferences/PSListController.h>
 #import <Preferences/PSSpecifier.h>
-#import <CoreFoundation/CoreFoundation.h>
 
 #import "SleepModeTimeoutController.h"
 
-static NSString * const kSleepModeDomain =
-    @"com.trantu.sleepmode";
-
-static NSString * const kSleepModeChangedNotification =
-    @"com.trantu.sleepmode.settingsChanged";
+static NSString * const kSleepModeTimeoutKey =
+    @"SleepModeTimeout";
 
 @implementation SleepModeTimeoutController
 
@@ -19,7 +15,8 @@ static NSString * const kSleepModeChangedNotification =
     self = [super init];
 
     if (self) {
-        self.title = @"Tự động khóa sau";
+        self.title =
+            @"Tự động khóa sau";
     }
 
     return self;
@@ -38,7 +35,8 @@ static NSString * const kSleepModeChangedNotification =
 
         [group setProperty:
             @"Chọn thời gian không có thao tác trước khi SleepMode khóa iPhone."
-            forKey:@"footerText"];
+            forKey:
+                @"footerText"];
 
         [items addObject:group];
 
@@ -77,11 +75,15 @@ static NSString * const kSleepModeChangedNotification =
                     cell:PSLinkCell
                     edit:nil];
 
-            [item setProperty:@YES
-                       forKey:@"enabled"];
+            [item setProperty:
+                @YES
+                forKey:
+                    @"enabled"];
 
-            [item setProperty:values[i]
-                       forKey:@"timeoutValue"];
+            [item setProperty:
+                values[i]
+                forKey:
+                    @"timeoutValue"];
 
             [items addObject:item];
         }
@@ -96,18 +98,12 @@ static NSString * const kSleepModeChangedNotification =
 - (NSInteger)currentTimeout
 {
     NSUserDefaults *defaults =
-        [[NSUserDefaults alloc]
-            initWithSuiteName:
-                kSleepModeDomain];
+        [NSUserDefaults standardUserDefaults];
 
     NSNumber *value =
         [defaults objectForKey:
-            @"SleepModeTimeout"];
+            kSleepModeTimeoutKey];
 
-    /*
-     * Mặc định phải khớp core:
-     * 15 giây.
-     */
     if (value == nil) {
         return 15;
     }
@@ -175,25 +171,19 @@ static NSString * const kSleepModeChangedNotification =
     if (timeout != nil) {
 
         NSUserDefaults *defaults =
-            [[NSUserDefaults alloc]
-                initWithSuiteName:
-                    kSleepModeDomain];
+            [NSUserDefaults standardUserDefaults];
 
         [defaults setObject:
             timeout
             forKey:
-                @"SleepModeTimeout"];
+                kSleepModeTimeoutKey];
 
         [defaults synchronize];
 
-        CFNotificationCenterPostNotification(
-            CFNotificationCenterGetDarwinNotifyCenter(),
-            (__bridge CFStringRef)
-                kSleepModeChangedNotification,
-            NULL,
-            NULL,
-            YES
-        );
+        [[NSNotificationCenter defaultCenter]
+            postNotificationName:
+                @"com.trantu.sleepmode.settingsChanged"
+            object:nil];
 
         [tableView reloadData];
 

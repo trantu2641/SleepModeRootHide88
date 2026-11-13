@@ -1,11 +1,9 @@
 #import "SleepManager.h"
 
 #import <UIKit/UIKit.h>
+#import <Foundation/Foundation.h>
 #import <objc/message.h>
 #import <objc/runtime.h>
-
-static NSString * const SMPreferencesDomain =
-    @"com.trantu.sleepmode";
 
 static NSString * const SMEnabledKey =
     @"SleepModeEnabled";
@@ -13,23 +11,12 @@ static NSString * const SMEnabledKey =
 static NSString * const SMTimeoutKey =
     @"SleepModeTimeout";
 
-static NSString * const SMSettingsChangedNotification =
-    @"com.trantu.sleepmode.settingsChanged";
-
 static SleepManager *gSharedManager = nil;
-
-static void SMSettingsChangedCallback(
-    CFNotificationCenterRef center,
-    void *observer,
-    CFStringRef name,
-    const void *object,
-    CFDictionaryRef userInfo
-);
 
 @interface SleepManager ()
 
 @property(nonatomic, strong) NSTimer *timer;
-@property(nonatomic, assign) BOOL terminatingApps;
+@property(nonatomic, assign) BOOL started;
 
 @end
 
@@ -52,40 +39,35 @@ static void SMSettingsChangedCallback(
 
     if (self) {
 
-        /*
-         * Giữ cơ chế core cũ.
-         * Chỉ thay giá trị mặc định từ 300s -> 15s.
-         */
         _enabled = YES;
         _timeout = 15.0;
+        _started = NO;
 
         [self loadPreferences];
-
-        CFNotificationCenterAddObserver(
-            CFNotificationCenterGetDarwinNotifyCenter(),
-            (__bridge const void *)(self),
-            SMSettingsChangedCallback,
-            CFSTR("com.trantu.sleepmode.settingsChanged"),
-            NULL,
-            CFNotificationSuspensionBehaviorDeliverImmediately
-        );
     }
 
     return self;
 }
 
+#pragma mark - Preferences
+
 - (NSUserDefaults *)preferences
 {
-    return [[NSUserDefaults alloc]
-        initWithSuiteName:SMPreferencesDomain];
+    /*
+     * QUAN TRỌNG:
+     * Core 1.3.0 dùng standardUserDefaults.
+     */
+    return [NSUserDefaults standardUserDefaults];
 }
 
 - (void)loadPreferences
 {
-    NSUserDefaults *defaults = [self preferences];
+    NSUserDefaults *defaults =
+        [self preferences];
 
     if ([defaults objectForKey:SMEnabledKey] != nil) {
-        self.enabled =
+
+        _enabled =
             [defaults boolForKey:SMEnabledKey];
     }
 
@@ -94,21 +76,10 @@ static void SMSettingsChangedCallback(
         NSTimeInterval value =
             [defaults doubleForKey:SMTimeoutKey];
 
-        /*
-         * Cho phép toàn bộ các giá trị menu:
-         *
-         * 15
-         * 60
-         * 300
-         * 900
-         * 1800
-         * 3600
-         * 7200
-         */
         if (value >= 15.0 &&
             value <= 7200.0) {
 
-            self.timeout = value;
+            _timeout = value;
         }
     }
 }
@@ -123,6 +94,68 @@ static void SMSettingsChangedCallback(
         [self start];
     }
 }
+
+#pragma mark - Enabled
+
+- (BOOL)isEnabled
+{
+    return _enabled;
+}
+
+- (void)setEnabled:(BOOL)enabled
+{
+    _enabled = enabled;
+
+    NSUserDefaults *defaults =
+        [self preferences];
+
+    [defaults setBool:
+        enabled
+        forKey:
+            SMEnabledKey];
+
+    [defaults synchronize];
+
+    if (enabled) {
+        [self start];
+    } else {
+        [self stop];
+    }
+}
+
+#pragma mark - Timeout
+
+- (NSTimeInterval)timeout
+{
+    return _timeout;
+}
+
+- (void)setTimeout:(NSTimeInterval)timeout
+{
+    if (timeout < 15.0 ||
+        timeout > 7200.0) {
+
+        timeout = 15.0;
+    }
+
+    _timeout = timeout;
+
+    NSUserDefaults *defaults =
+        [self preferences];
+
+    [defaults setDouble:
+        timeout
+        forKey:
+            SMTimeoutKey];
+
+    [defaults synchronize];
+
+    if (self.enabled) {
+        [self start];
+    }
+}
+
+#pragma mark - Timer
 
 - (void)start
 {
@@ -150,6 +183,9 @@ static void SMSettingsChangedCallback(
                 selector:@selector(timerFired:)
                 userInfo:nil
                 repeats:NO];
+
+            self.started =
+                (self.timer != nil);
         }
     );
 }
@@ -160,10 +196,13 @@ static void SMSettingsChangedCallback(
         dispatch_get_main_queue(),
         ^{
 
-            if (self.timer) {
+            if (self.timer != nil) {
+
                 [self.timer invalidate];
                 self.timer = nil;
             }
+
+            self.started = NO;
         }
     );
 }
@@ -182,7 +221,8 @@ static void SMSettingsChangedCallback(
                 return;
             }
 
-            if (self.timer) {
+            if (self.timer != nil) {
+
                 [self.timer invalidate];
                 self.timer = nil;
             }
@@ -201,6 +241,9 @@ static void SMSettingsChangedCallback(
                 selector:@selector(timerFired:)
                 userInfo:nil
                 repeats:NO];
+
+            self.started =
+                (self.timer != nil);
         }
     );
 }
@@ -212,21 +255,15 @@ static void SMSettingsChangedCallback(
     }
 
     self.timer = nil;
+    self.started = NO;
 
-    /*
-     * Đúng thứ tự core cũ:
-     *
-     * 1. Đóng app người dùng
-     * 2. Chờ 0.15s
-     * 3. Khóa máy
-     */
     [self terminateUserApps];
 
     dispatch_after(
         dispatch_time(
             DISPATCH_TIME_NOW,
             (int64_t)(0.15 *
-                     NSEC_PER_SEC)
+                      NSEC_PER_SEC)
         ),
         dispatch_get_main_queue(),
         ^{
@@ -238,14 +275,10 @@ static void SMSettingsChangedCallback(
     );
 }
 
+#pragma mark - Terminate applications
+
 - (void)terminateUserApps
 {
-    if (self.terminatingApps) {
-        return;
-    }
-
-    self.terminatingApps = YES;
-
     @try {
 
         Class SBApplicationController =
@@ -261,7 +294,6 @@ static void SMSettingsChangedCallback(
         if (!SBApplicationController ||
             !FBSystemService) {
 
-            self.terminatingApps = NO;
             return;
         }
 
@@ -292,7 +324,6 @@ static void SMSettingsChangedCallback(
         if (!applicationController ||
             !systemService) {
 
-            self.terminatingApps = NO;
             return;
         }
 
@@ -305,7 +336,6 @@ static void SMSettingsChangedCallback(
               respondsToSelector:
                   allApplicationsSelector]) {
 
-            self.terminatingApps = NO;
             return;
         }
 
@@ -319,7 +349,6 @@ static void SMSettingsChangedCallback(
               isKindOfClass:
                   [NSArray class]]) {
 
-            self.terminatingApps = NO;
             return;
         }
 
@@ -332,21 +361,19 @@ static void SMSettingsChangedCallback(
               respondsToSelector:
                   terminateSelector]) {
 
-            self.terminatingApps = NO;
             return;
         }
+
+        SEL bundleIdentifierSelector =
+            NSSelectorFromString(
+                @"bundleIdentifier"
+            );
 
         for (id application in applications) {
 
             @autoreleasepool {
 
-                NSString *bundleIdentifier =
-                    nil;
-
-                SEL bundleIdentifierSelector =
-                    NSSelectorFromString(
-                        @"bundleIdentifier"
-                    );
+                NSString *bundleIdentifier = nil;
 
                 if ([application
                      respondsToSelector:
@@ -366,9 +393,6 @@ static void SMSettingsChangedCallback(
                     continue;
                 }
 
-                /*
-                 * Không tự đóng SpringBoard.
-                 */
                 if ([bundleIdentifier
                      isEqualToString:
                          @"com.apple.springboard"]) {
@@ -376,9 +400,6 @@ static void SMSettingsChangedCallback(
                     continue;
                 }
 
-                /*
-                 * Không đóng Settings.
-                 */
                 if ([bundleIdentifier
                      isEqualToString:
                          @"com.apple.Preferences"]) {
@@ -386,10 +407,6 @@ static void SMSettingsChangedCallback(
                     continue;
                 }
 
-                /*
-                 * Không đóng các process dịch vụ
-                 * được core cũ bỏ qua.
-                 */
                 if ([bundleIdentifier
                      hasPrefix:
                          @"com.apple.SafariViewService"]) {
@@ -404,11 +421,6 @@ static void SMSettingsChangedCallback(
                     continue;
                 }
 
-                /*
-                 * Quan trọng:
-                 * truyền bundleIdentifier,
-                 * không truyền object application.
-                 */
                 ((void (*)(id, SEL, id, NSInteger, BOOL))
                     objc_msgSend)(
                         systemService,
@@ -423,13 +435,13 @@ static void SMSettingsChangedCallback(
     @catch (NSException *exception) {
 
         NSLog(
-            @"[SleepMode] terminate exception: %@",
+            @"[SleepMode] terminateUserApps exception: %@",
             exception
         );
     }
-
-    self.terminatingApps = NO;
 }
+
+#pragma mark - Lock
 
 - (void)lockDevice
 {
@@ -515,24 +527,3 @@ static void SMSettingsChangedCallback(
 }
 
 @end
-
-#pragma mark - Settings notification
-
-static void SMSettingsChangedCallback(
-    CFNotificationCenterRef center,
-    void *observer,
-    CFStringRef name,
-    const void *object,
-    CFDictionaryRef userInfo
-)
-{
-    SleepManager *manager =
-        (__bridge SleepManager *)observer;
-
-    dispatch_async(
-        dispatch_get_main_queue(),
-        ^{
-            [manager reloadPreferences];
-        }
-    );
-}

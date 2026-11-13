@@ -15,8 +15,6 @@ static NSString * const kSleepModeChangedNotification =
 
 @implementation SleepModePrefsListController
 
-#pragma mark - Init
-
 - (instancetype)init
 {
     self = [super init];
@@ -28,37 +26,34 @@ static NSString * const kSleepModeChangedNotification =
     return self;
 }
 
-#pragma mark - Specifiers
-
 - (NSArray *)specifiers
 {
     if (_specifiers == nil) {
 
-        NSMutableArray *specifiers =
+        NSMutableArray *items =
             [NSMutableArray array];
 
+
         /*
-         * ----------------------------------------------------
+         * ==================================================
          * GROUP
-         * ----------------------------------------------------
+         * ==================================================
          */
 
         PSSpecifier *group =
             [PSSpecifier groupSpecifierWithName:@"SleepMode"];
 
-        if (group) {
-            [group setProperty:
-                @"Tự động khóa và đóng ứng dụng sau thời gian không sử dụng."
-                forKey:@"footerText"];
+        [group setProperty:
+            @"Tự động khóa và đóng ứng dụng sau thời gian không sử dụng."
+            forKey:@"footerText"];
 
-            [specifiers addObject:group];
-        }
+        [items addObject:group];
 
 
         /*
-         * ----------------------------------------------------
-         * ENABLE SWITCH
-         * ----------------------------------------------------
+         * ==================================================
+         * ENABLE
+         * ==================================================
          */
 
         PSSpecifier *enabled =
@@ -68,39 +63,32 @@ static NSString * const kSleepModeChangedNotification =
                 set:@selector(setPreferenceValue:specifier:)
                 get:@selector(readPreferenceValue:)
                 detail:nil
-                cell:PSLinkListCell
+                cell:PSSwitchCell
                 edit:nil];
 
-        if (enabled) {
+        [enabled setProperty:
+            @"SleepModeEnabled"
+            forKey:@"key"];
 
-            [enabled setProperty:
-                @"SleepModeEnabled"
-                forKey:@"key"];
+        [enabled setProperty:
+            kSleepModeDomain
+            forKey:@"defaults"];
 
-            [enabled setProperty:
-                kSleepModeDomain
-                forKey:@"defaults"];
+        [enabled setProperty:
+            @YES
+            forKey:@"default"];
 
-            [enabled setProperty:
-                @YES
-                forKey:@"default"];
+        [enabled setProperty:
+            kSleepModeChangedNotification
+            forKey:@"PostNotification"];
 
-            [enabled setProperty:
-                @"com.trantu.sleepmode.settingsChanged"
-                forKey:@"PostNotification"];
-
-            [enabled setProperty:
-                @(PSSwitchCell)
-                forKey:@"cell"];
-
-            [specifiers addObject:enabled];
-        }
+        [items addObject:enabled];
 
 
         /*
-         * ----------------------------------------------------
+         * ==================================================
          * TIMEOUT
-         * ----------------------------------------------------
+         * ==================================================
          */
 
         PSSpecifier *timeout =
@@ -113,86 +101,62 @@ static NSString * const kSleepModeChangedNotification =
                 cell:PSLinkListCell
                 edit:nil];
 
-        if (timeout) {
+        [timeout setProperty:
+            @"SleepModeTimeout"
+            forKey:@"key"];
 
-            [timeout setProperty:
-                @"SleepModeTimeout"
-                forKey:@"key"];
+        [timeout setProperty:
+            kSleepModeDomain
+            forKey:@"defaults"];
 
-            [timeout setProperty:
-                kSleepModeDomain
-                forKey:@"defaults"];
+        [timeout setProperty:
+            @300
+            forKey:@"default"];
 
-            [timeout setProperty:
-                @300
-                forKey:@"default"];
+        [timeout setProperty:
+            @[
+                @"1 phút",
+                @"5 phút",
+                @"15 phút",
+                @"30 phút",
+                @"1 giờ",
+                @"2 giờ"
+            ]
+            forKey:@"titles"];
 
-            [timeout setProperty:
-                @[
-                    @"1 phút",
-                    @"5 phút",
-                    @"15 phút",
-                    @"30 phút",
-                    @"1 giờ",
-                    @"2 giờ"
-                ]
-                forKey:@"titles"];
+        [timeout setProperty:
+            @[
+                @60,
+                @300,
+                @900,
+                @1800,
+                @3600,
+                @7200
+            ]
+            forKey:@"values"];
 
-            [timeout setProperty:
-                @[
-                    @60,
-                    @300,
-                    @900,
-                    @1800,
-                    @3600,
-                    @7200
-                ]
-                forKey:@"values"];
+        [timeout setProperty:
+            kSleepModeChangedNotification
+            forKey:@"PostNotification"];
 
-            [timeout setProperty:
-                @"com.trantu.sleepmode.settingsChanged"
-                forKey:@"PostNotification"];
-
-            [specifiers addObject:timeout];
-        }
+        [items addObject:timeout];
 
 
-        /*
-         * ----------------------------------------------------
-         * SAFETY CHECK
-         * ----------------------------------------------------
-         */
+        _specifiers = [items mutableCopy];
 
-        if ([specifiers count] == 0) {
-
-            NSLog(
-                @"[SleepModePrefs] ERROR: no specifiers created"
-            );
-
-        } else {
-
-            NSLog(
-                @"[SleepModePrefs] created %lu specifiers",
-                (unsigned long)[specifiers count]
-            );
-        }
-
-        _specifiers = [specifiers mutableCopy];
+        NSLog(
+            @"[SleepModePrefs] loaded %lu specifiers",
+            (unsigned long)_specifiers.count
+        );
     }
 
     return _specifiers;
 }
 
-#pragma mark - Preference Read
-
 - (id)readPreferenceValue:(PSSpecifier *)specifier
 {
     NSString *key =
         [specifier propertyForKey:@"key"];
-
-    if (!key) {
-        return nil;
-    }
 
     NSUserDefaults *defaults =
         [[NSUserDefaults alloc]
@@ -209,8 +173,6 @@ static NSString * const kSleepModeChangedNotification =
     return value;
 }
 
-#pragma mark - Preference Write
-
 - (void)setPreferenceValue:(id)value
                   specifier:(PSSpecifier *)specifier
 {
@@ -225,7 +187,7 @@ static NSString * const kSleepModeChangedNotification =
         [[NSUserDefaults alloc]
             initWithSuiteName:kSleepModeDomain];
 
-    if (value) {
+    if (value != nil) {
         [defaults setObject:value forKey:key];
     } else {
         [defaults removeObjectForKey:key];
@@ -233,24 +195,17 @@ static NSString * const kSleepModeChangedNotification =
 
     [defaults synchronize];
 
-    /*
-     * Notify SleepManager immediately.
-     */
     CFNotificationCenterPostNotification(
         CFNotificationCenterGetDarwinNotifyCenter(),
-        (__bridge CFStringRef)kSleepModeChangedNotification,
+        (__bridge CFStringRef)
+            kSleepModeChangedNotification,
         NULL,
         NULL,
         YES
     );
 
-    /*
-     * Reload the changed row.
-     */
     [self reloadSpecifier:specifier];
 }
-
-#pragma mark - View
 
 - (void)viewDidLoad
 {

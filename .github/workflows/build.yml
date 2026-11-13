@@ -636,6 +636,19 @@ jobs:
 
           echo "Found PreferenceBundle: $PREFS_BUNDLE"
 
+          # Root.plist is required by PSListController.
+          # It currently lives at the project root, not under Resources/,
+          # so copy it into the generated PreferenceBundle before packaging.
+          if [ ! -f "$PREFS_BUNDLE/Root.plist" ]; then
+            cp SleepModePrefs/Root.plist "$PREFS_BUNDLE/Root.plist"
+          fi
+
+          if [ ! -f "$PREFS_BUNDLE/icon.png" ]; then
+            echo "ERROR: icon.png missing from SleepModePrefs.bundle."
+            find "$PREFS_BUNDLE" -maxdepth 3 -type f -print || true
+            exit 1
+          fi
+
           test -f "$PREFS_BUNDLE/Root.plist"
           test -f "$PREFS_BUNDLE/icon.png"
 

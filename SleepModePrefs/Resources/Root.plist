@@ -1,61 +1,42 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-
 <plist version="1.0">
 <dict>
-
     <key>PreferenceSpecifiers</key>
     <array>
-
         <dict>
             <key>Type</key>
             <string>PSGroupCell</string>
-
             <key>Title</key>
             <string>SLEEPMODE</string>
-
             <key>FooterText</key>
-            <string>Tự động khóa iPhone và đóng ứng dụng sau thời gian không sử dụng.</string>
+            <string>Tự động đóng ứng dụng và khóa iPhone khi không có thao tác chạm.</string>
         </dict>
-
-
         <dict>
             <key>Type</key>
             <string>PSSwitchCell</string>
-
             <key>Title</key>
             <string>Bật SleepMode</string>
-
             <key>Key</key>
             <string>SleepModeEnabled</string>
-
             <key>DefaultValue</key>
             <true/>
-
             <key>Defaults</key>
             <string>com.trantu.sleepmode</string>
-
             <key>PostNotification</key>
             <string>com.trantu.sleepmode.settingsChanged</string>
         </dict>
-
-
         <dict>
             <key>Type</key>
             <string>PSLinkCell</string>
-
             <key>Title</key>
             <string>Tự động khóa sau</string>
-
             <key>Detail</key>
             <string>SleepModeTimeoutController</string>
-
             <key>IsController</key>
             <true/>
         </dict>
-
     </array>
-
 </dict>
 </plist>

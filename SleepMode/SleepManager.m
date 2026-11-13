@@ -18,10 +18,13 @@ static NSString * const kSleepModeChangedNotification =
     @"com.trantu.sleepmode.settingsChanged";
 
 @interface SleepManager ()
+{
+    BOOL _enabled;
+    NSTimeInterval _timeout;
 
-@property(nonatomic, strong) NSTimer *timer;
-@property(nonatomic, assign) BOOL started;
-
+    NSTimer *_timer;
+    BOOL _started;
+}
 @end
 
 @implementation SleepManager
@@ -29,7 +32,6 @@ static NSString * const kSleepModeChangedNotification =
 + (instancetype)sharedInstance
 {
     static SleepManager *instance = nil;
-
     static dispatch_once_t onceToken;
 
     dispatch_once(&onceToken, ^{
@@ -91,17 +93,13 @@ static NSString * const kSleepModeChangedNotification =
 
     if ([defaults objectForKey:kSleepModeTimeoutKey] != nil) {
 
-        double timeout =
+        double savedTimeout =
             [defaults doubleForKey:kSleepModeTimeoutKey];
 
-        /*
-         * Không giới hạn >= 60.
-         * Cho phép 15 giây.
-         */
-        if (timeout >= 15.0 &&
-            timeout <= 7200.0) {
+        if (savedTimeout >= 15.0 &&
+            savedTimeout <= 7200.0) {
 
-            _timeout = timeout;
+            _timeout = savedTimeout;
         }
     }
 }
@@ -116,8 +114,15 @@ static NSString * const kSleepModeChangedNotification =
         return 300.0;
     }
 
+    id value =
+        [defaults objectForKey:kSleepModeTimeoutKey];
+
+    if (value == nil) {
+        return 300.0;
+    }
+
     double timeout =
-        [defaults doubleForKey:kSleepModeTimeoutKey];
+        [value doubleValue];
 
     if (timeout >= 15.0 &&
         timeout <= 7200.0) {
@@ -202,7 +207,7 @@ static NSString * const kSleepModeChangedNotification =
 
 - (void)start
 {
-    if (!self.enabled) {
+    if (!_enabled) {
         return;
     }
 
@@ -221,7 +226,6 @@ static NSString * const kSleepModeChangedNotification =
     _started = NO;
 
     if (_timer != nil) {
-
         [_timer invalidate];
         _timer = nil;
     }
@@ -231,7 +235,7 @@ static NSString * const kSleepModeChangedNotification =
 
 - (void)resetTimer
 {
-    if (!self.enabled) {
+    if (!_enabled) {
         return;
     }
 
@@ -240,7 +244,6 @@ static NSString * const kSleepModeChangedNotification =
     }
 
     if (_timer != nil) {
-
         [_timer invalidate];
         _timer = nil;
     }
@@ -276,19 +279,16 @@ static NSString * const kSleepModeChangedNotification =
 
 - (void)timerFired:(NSTimer *)timer
 {
-    if (!self.enabled) {
-        return;
-    }
-
-    if (!_started) {
+    if (!_enabled || !_started) {
         return;
     }
 
     _timer = nil;
 
     /*
-     * Đóng app trước.
-     * Sau đó khóa máy.
+     * Giữ nguyên cơ chế:
+     * 1. Đóng app người dùng.
+     * 2. Sau 0.15 giây khóa máy.
      */
     [self terminateUserApps];
 
@@ -299,8 +299,8 @@ static NSString * const kSleepModeChangedNotification =
         ^{
             @autoreleasepool {
 
-                if (!self.enabled ||
-                    !self.started) {
+                if (!self->_enabled ||
+                    !self->_started) {
                     return;
                 }
 
@@ -319,7 +319,7 @@ static NSString * const kSleepModeChangedNotification =
 
             [self loadPreferences];
 
-            if (self.enabled) {
+            if (self->_enabled) {
                 [self start];
             } else {
                 [self stop];
@@ -328,7 +328,7 @@ static NSString * const kSleepModeChangedNotification =
     });
 }
 
-#pragma mark - Lock
+#pragma mark - Lock Device
 
 - (void)lockDevice
 {
@@ -372,22 +372,22 @@ static NSString * const kSleepModeChangedNotification =
         UIApplication *application =
             [UIApplication sharedApplication];
 
-        SEL lockSelector =
+        SEL fallbackSelector =
             NSSelectorFromString(@"_lockScreen");
 
         if ([application
-                respondsToSelector:lockSelector]) {
+                respondsToSelector:fallbackSelector]) {
 
             ((void (*)(id, SEL))
                 objc_msgSend)(
                     application,
-                    lockSelector
+                    fallbackSelector
                 );
         }
     }
 }
 
-#pragma mark - Terminate Apps
+#pragma mark - Terminate User Apps
 
 - (void)terminateUserApps
 {
@@ -439,6 +439,41 @@ static NSString * const kSleepModeChangedNotification =
             return;
         }
 
+        Class FBSystemService =
+            objc_getClass("FBSystemService");
+
+        if (FBSystemService == Nil) {
+            return;
+        }
+
+        SEL fbSharedSelector =
+            NSSelectorFromString(@"sharedInstance");
+
+        if (![FBSystemService
+                respondsToSelector:fbSharedSelector]) {
+            return;
+        }
+
+        id service =
+            ((id (*)(id, SEL))
+                objc_msgSend)(
+                    FBSystemService,
+                    fbSharedSelector
+                );
+
+        if (service == nil) {
+            return;
+        }
+
+        SEL terminateSelector =
+            NSSelectorFromString(
+                @"terminateApplication:forReason:andReport:");
+
+        if (![service
+                respondsToSelector:terminateSelector]) {
+            return;
+        }
+
         for (id application in applications) {
 
             @autoreleasepool {
@@ -464,16 +499,28 @@ static NSString * const kSleepModeChangedNotification =
                     continue;
                 }
 
+                /*
+                 * Không đóng SpringBoard.
+                 */
                 if ([bundleIdentifier
-                        isEqualToString:@"com.apple.springboard"]) {
+                        isEqualToString:
+                            @"com.apple.springboard"]) {
                     continue;
                 }
 
+                /*
+                 * Không đóng Settings.
+                 */
                 if ([bundleIdentifier
-                        isEqualToString:@"com.apple.Preferences"]) {
+                        isEqualToString:
+                            @"com.apple.Preferences"]) {
                     continue;
                 }
 
+                /*
+                 * Không đóng các process WebKit/Safari
+                 * hệ thống.
+                 */
                 if ([bundleIdentifier
                         hasPrefix:
                             @"com.apple.SafariViewService"]) {
@@ -482,44 +529,6 @@ static NSString * const kSleepModeChangedNotification =
 
                 if ([bundleIdentifier
                         hasPrefix:@"com.apple.WebKit"]) {
-                    continue;
-                }
-
-                Class FBSystemService =
-                    objc_getClass("FBSystemService");
-
-                if (FBSystemService == Nil) {
-                    continue;
-                }
-
-                SEL fbSharedSelector =
-                    NSSelectorFromString(
-                        @"sharedInstance");
-
-                if (![FBSystemService
-                        respondsToSelector:
-                            fbSharedSelector]) {
-                    continue;
-                }
-
-                id service =
-                    ((id (*)(id, SEL))
-                        objc_msgSend)(
-                            FBSystemService,
-                            fbSharedSelector
-                        );
-
-                if (service == nil) {
-                    continue;
-                }
-
-                SEL terminateSelector =
-                    NSSelectorFromString(
-                        @"terminateApplication:forReason:andReport:");
-
-                if (![service
-                        respondsToSelector:
-                            terminateSelector]) {
                     continue;
                 }
 

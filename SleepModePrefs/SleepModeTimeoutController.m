@@ -3,10 +3,12 @@
 #import <Preferences/PSListController.h>
 #import <Preferences/PSSpecifier.h>
 
+#import <CoreFoundation/CoreFoundation.h>
+
 #import "SleepModeTimeoutController.h"
 
-static NSString * const kSleepModeTimeoutKey =
-    @"SleepModeTimeout";
+static NSString * const kSleepModeChangedNotification =
+    @"com.trantu.sleepmode.settingsChanged";
 
 @implementation SleepModeTimeoutController
 
@@ -15,8 +17,7 @@ static NSString * const kSleepModeTimeoutKey =
     self = [super init];
 
     if (self) {
-        self.title =
-            @"Tự động khóa sau";
+        self.title = @"Tự động khóa sau";
     }
 
     return self;
@@ -35,8 +36,7 @@ static NSString * const kSleepModeTimeoutKey =
 
         [group setProperty:
             @"Chọn thời gian không có thao tác trước khi SleepMode khóa iPhone."
-            forKey:
-                @"footerText"];
+            forKey:@"footerText"];
 
         [items addObject:group];
 
@@ -65,9 +65,8 @@ static NSString * const kSleepModeTimeoutKey =
              i++) {
 
             PSSpecifier *item =
-                [PSSpecifier
-                    preferenceSpecifierNamed:
-                        titles[i]
+                [PSSpecifier preferenceSpecifierNamed:
+                    titles[i]
                     target:self
                     set:nil
                     get:nil
@@ -77,13 +76,11 @@ static NSString * const kSleepModeTimeoutKey =
 
             [item setProperty:
                 @YES
-                forKey:
-                    @"enabled"];
+                forKey:@"enabled"];
 
             [item setProperty:
                 values[i]
-                forKey:
-                    @"timeoutValue"];
+                forKey:@"timeoutValue"];
 
             [items addObject:item];
         }
@@ -101,8 +98,7 @@ static NSString * const kSleepModeTimeoutKey =
         [NSUserDefaults standardUserDefaults];
 
     NSNumber *value =
-        [defaults objectForKey:
-            kSleepModeTimeoutKey];
+        [defaults objectForKey:@"SleepModeTimeout"];
 
     if (value == nil) {
         return 15;
@@ -111,9 +107,7 @@ static NSString * const kSleepModeTimeoutKey =
     NSInteger timeout =
         [value integerValue];
 
-    if (timeout < 15 ||
-        timeout > 7200) {
-
+    if (timeout <= 0) {
         return 15;
     }
 
@@ -121,19 +115,17 @@ static NSString * const kSleepModeTimeoutKey =
 }
 
 - (UITableViewCell *)tableView:
-    (UITableView *)tableView
+        (UITableView *)tableView
     cellForRowAtIndexPath:
         (NSIndexPath *)indexPath
 {
     UITableViewCell *cell =
         [super tableView:
             tableView
-        cellForRowAtIndexPath:
-            indexPath];
+            cellForRowAtIndexPath:indexPath];
 
     PSSpecifier *specifier =
-        [self specifierAtIndexPath:
-            indexPath];
+        [self specifierAtIndexPath:indexPath];
 
     NSNumber *timeout =
         [specifier propertyForKey:
@@ -156,13 +148,12 @@ static NSString * const kSleepModeTimeoutKey =
 }
 
 - (void)tableView:
-    (UITableView *)tableView
+        (UITableView *)tableView
     didSelectRowAtIndexPath:
         (NSIndexPath *)indexPath
 {
     PSSpecifier *specifier =
-        [self specifierAtIndexPath:
-            indexPath];
+        [self specifierAtIndexPath:indexPath];
 
     NSNumber *timeout =
         [specifier propertyForKey:
@@ -175,15 +166,18 @@ static NSString * const kSleepModeTimeoutKey =
 
         [defaults setObject:
             timeout
-            forKey:
-                kSleepModeTimeoutKey];
+            forKey:@"SleepModeTimeout"];
 
         [defaults synchronize];
 
-        [[NSNotificationCenter defaultCenter]
-            postNotificationName:
-                @"com.trantu.sleepmode.settingsChanged"
-            object:nil];
+        CFNotificationCenterPostNotification(
+            CFNotificationCenterGetDarwinNotifyCenter(),
+            (__bridge CFStringRef)
+                kSleepModeChangedNotification,
+            NULL,
+            NULL,
+            YES
+        );
 
         [tableView reloadData];
 
@@ -199,8 +193,7 @@ static NSString * const kSleepModeTimeoutKey =
 
     [super tableView:
         tableView
-        didSelectRowAtIndexPath:
-            indexPath];
+        didSelectRowAtIndexPath:indexPath];
 }
 
 @end

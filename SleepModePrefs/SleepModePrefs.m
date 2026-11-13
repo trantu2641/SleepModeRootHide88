@@ -14,7 +14,6 @@ static NSString * const kSleepModeChangedNotification =
 #pragma mark -
 #pragma mark Timeout Controller
 
-
 @interface SleepModeTimeoutController : PSListController
 @end
 
@@ -33,15 +32,12 @@ static NSString * const kSleepModeChangedNotification =
 }
 
 
-#pragma mark - Specifiers
-
 - (NSArray *)specifiers
 {
     if (_specifiers == nil) {
 
         NSMutableArray *items =
             [NSMutableArray array];
-
 
         PSSpecifier *group =
             [PSSpecifier groupSpecifierWithName:@"THỜI GIAN"];
@@ -93,7 +89,6 @@ static NSString * const kSleepModeChangedNotification =
             [items addObject:item];
         }
 
-
         _specifiers =
             [items mutableCopy];
     }
@@ -101,8 +96,6 @@ static NSString * const kSleepModeChangedNotification =
     return _specifiers;
 }
 
-
-#pragma mark - Current Timeout
 
 - (NSInteger)currentTimeout
 {
@@ -121,8 +114,6 @@ static NSString * const kSleepModeChangedNotification =
 }
 
 
-#pragma mark - Cell
-
 - (UITableViewCell *)tableView:(UITableView *)tableView
          cellForRowAtIndexPath:(NSIndexPath *)indexPath
 {
@@ -136,26 +127,21 @@ static NSString * const kSleepModeChangedNotification =
     NSNumber *timeout =
         [specifier propertyForKey:@"timeoutValue"];
 
-    if (timeout != nil) {
+    if (timeout != nil &&
+        [timeout integerValue] == [self currentTimeout]) {
 
-        if ([timeout integerValue] ==
-            [self currentTimeout]) {
+        cell.accessoryType =
+            UITableViewCellAccessoryCheckmark;
 
-            cell.accessoryType =
-                UITableViewCellAccessoryCheckmark;
+    } else {
 
-        } else {
-
-            cell.accessoryType =
-                UITableViewCellAccessoryNone;
-        }
+        cell.accessoryType =
+            UITableViewCellAccessoryNone;
     }
 
     return cell;
 }
 
-
-#pragma mark - Select
 
 - (void)tableView:(UITableView *)tableView
  didSelectRowAtIndexPath:(NSIndexPath *)indexPath
@@ -193,7 +179,6 @@ static NSString * const kSleepModeChangedNotification =
             indexPath
             animated:YES];
 
-
         [self.navigationController
             popViewControllerAnimated:YES];
 
@@ -210,7 +195,6 @@ static NSString * const kSleepModeChangedNotification =
 
 #pragma mark -
 #pragma mark Main SleepMode Controller
-
 
 @interface SleepModePrefsListController : PSListController
 @end
@@ -230,8 +214,6 @@ static NSString * const kSleepModeChangedNotification =
 }
 
 
-#pragma mark - Main Specifiers
-
 - (NSArray *)specifiers
 {
     if (_specifiers == nil) {
@@ -240,9 +222,9 @@ static NSString * const kSleepModeChangedNotification =
             [NSMutableArray array];
 
 
-        // ==================================================
+        // ==============================================
         // GROUP
-        // ==================================================
+        // ==============================================
 
         PSSpecifier *group =
             [PSSpecifier groupSpecifierWithName:@"SLEEPMODE"];
@@ -254,9 +236,9 @@ static NSString * const kSleepModeChangedNotification =
         [items addObject:group];
 
 
-        // ==================================================
+        // ==============================================
         // BẬT / TẮT
-        // ==================================================
+        // ==============================================
 
         PSSpecifier *enabled =
             [PSSpecifier preferenceSpecifierNamed:
@@ -291,9 +273,9 @@ static NSString * const kSleepModeChangedNotification =
         [items addObject:enabled];
 
 
-        // ==================================================
+        // ==============================================
         // TỰ ĐỘNG KHÓA SAU
-        // ==================================================
+        // ==============================================
 
         PSSpecifier *timeout =
             [PSSpecifier preferenceSpecifierNamed:
@@ -328,8 +310,6 @@ static NSString * const kSleepModeChangedNotification =
 }
 
 
-#pragma mark - Read
-
 - (id)readPreferenceValue:(PSSpecifier *)specifier
 {
     NSString *key =
@@ -355,8 +335,6 @@ static NSString * const kSleepModeChangedNotification =
     return [specifier propertyForKey:@"default"];
 }
 
-
-#pragma mark - Write
 
 - (void)setPreferenceValue:(id)value
                   specifier:(PSSpecifier *)specifier
@@ -402,8 +380,6 @@ static NSString * const kSleepModeChangedNotification =
     [self reloadSpecifier:specifier];
 }
 
-
-#pragma mark - View
 
 - (void)viewDidLoad
 {

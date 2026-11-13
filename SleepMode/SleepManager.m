@@ -2,23 +2,19 @@
 
 #import <UIKit/UIKit.h>
 #import <Foundation/Foundation.h>
-#import <SpringBoard/SpringBoard.h>
+#import <CoreFoundation/CoreFoundation.h>
 
 @interface SleepManager ()
-
 @property (nonatomic, assign) BOOL enabled;
 @property (nonatomic, assign) NSTimeInterval timeout;
-@property (nonatomic, retain) NSTimer *timer;
 @property (nonatomic, assign) BOOL started;
-
+@property (nonatomic, assign) BOOL deviceLocked;
+@property (nonatomic, assign) BOOL isEnteringSleep;
+@property (nonatomic, assign) NSTimeInterval lastInteraction;
+@property (nonatomic, strong) dispatch_source_t timer;
 @end
 
-@implementation SleepManager {
-    BOOL _enabled;
-    NSTimeInterval _timeout;
-    NSTimer *_timer;
-    BOOL _started;
-}
+@implementation SleepManager
 
 + (instancetype)sharedInstance
 {
@@ -40,36 +36,68 @@
         NSUserDefaults *defaults =
             [NSUserDefaults standardUserDefaults];
 
-        id enabledValue =
+        NSNumber *enabledValue =
             [defaults objectForKey:@"SleepModeEnabled"];
 
-        id timeoutValue =
+        NSNumber *timeoutValue =
             [defaults objectForKey:@"SleepModeTimeout"];
 
         _enabled =
-            (enabledValue != nil)
+            enabledValue != nil
             ? [enabledValue boolValue]
             : YES;
 
         _timeout =
-            (timeoutValue != nil)
+            timeoutValue != nil
             ? [timeoutValue doubleValue]
             : 15.0;
 
-        if (_timeout <= 0) {
+        if (_timeout < 1.0) {
             _timeout = 15.0;
         }
 
-        _timer = nil;
         _started = NO;
+        _deviceLocked = NO;
+        _isEnteringSleep = NO;
+        _lastInteraction = CFAbsoluteTimeGetCurrent();
+        _timer = nil;
+
+        [[NSNotificationCenter defaultCenter]
+            addObserver:self
+            selector:@selector(deviceDidLock)
+            name:@"SBDeviceLockStateChangedNotification"
+            object:nil];
+
+        [[NSNotificationCenter defaultCenter]
+            addObserver:self
+            selector:@selector(deviceDidUnlock)
+            name:@"SBDeviceUnlockStateChangedNotification"
+            object:nil];
+
+        [self installDarwinObserver];
     }
 
     return self;
 }
 
-#pragma mark - Properties
+- (void)dealloc
+{
+    [self stopTimer];
 
-- (BOOL)enabled
+    [[NSNotificationCenter defaultCenter]
+        removeObserver:self];
+
+    CFNotificationCenterRemoveObserver(
+        CFNotificationCenterGetDarwinNotifyCenter(),
+        (__bridge const void *)(self),
+        NULL,
+        NULL
+    );
+}
+
+#pragma mark - Settings
+
+- (BOOL)isEnabled
 {
     return _enabled;
 }
@@ -91,6 +119,8 @@
     } else {
         [self stop];
     }
+
+    [self postStateChanged];
 }
 
 - (NSTimeInterval)timeout
@@ -100,7 +130,7 @@
 
 - (void)setTimeout:(NSTimeInterval)timeout
 {
-    if (timeout <= 0) {
+    if (timeout < 1.0) {
         timeout = 15.0;
     }
 
@@ -117,18 +147,27 @@
     if (_started) {
         [self resetTimer];
     }
+
+    [self postStateChanged];
 }
 
 #pragma mark - Start / Stop
 
 - (void)start
 {
-    if (_started) {
-        [self resetTimer];
+    if (!_enabled) {
         return;
     }
 
     _started = YES;
+    _deviceLocked = NO;
+    _isEnteringSleep = NO;
+    _lastInteraction = CFAbsoluteTimeGetCurrent();
+
+    NSLog(
+        @"[SleepMode] Timer started, timeout = %.1f seconds",
+        _timeout
+    );
 
     [self resetTimer];
 }
@@ -136,101 +175,336 @@
 - (void)stop
 {
     _started = NO;
+    [self stopTimer];
 
-    if (_timer != nil) {
-        [_timer invalidate];
-        _timer = nil;
-    }
+    NSLog(@"[SleepMode] Timer stopped");
 }
 
 #pragma mark - Timer
 
 - (void)resetTimer
 {
-    if (!_enabled || !_started) {
+    if (!_enabled || !_started || _deviceLocked) {
         return;
     }
 
-    if (_timer != nil) {
-        [_timer invalidate];
-        _timer = nil;
+    _lastInteraction =
+        CFAbsoluteTimeGetCurrent();
+
+    [self stopTimer];
+
+    dispatch_source_t timer =
+        dispatch_source_create(
+            DISPATCH_SOURCE_TYPE_TIMER,
+            0,
+            0,
+            dispatch_get_main_queue()
+        );
+
+    if (timer == nil) {
+        return;
     }
 
-    _timer =
-        [NSTimer timerWithTimeInterval:_timeout
-                                target:self
-                              selector:@selector(timerFired:)
-                              userInfo:nil
-                               repeats:NO];
+    _timer = timer;
 
-    [[NSRunLoop mainRunLoop]
-        addTimer:_timer
-        forMode:NSRunLoopCommonModes];
+    uint64_t interval =
+        (uint64_t)(_timeout * NSEC_PER_SEC);
+
+    dispatch_source_set_timer(
+        timer,
+        dispatch_time(
+            DISPATCH_TIME_NOW,
+            interval
+        ),
+        DISPATCH_TIME_FOREVER,
+        1000000
+    );
+
+    __weak SleepManager *weakSelf = self;
+
+    dispatch_source_set_event_handler(timer, ^{
+        __strong SleepManager *strongSelf = weakSelf;
+
+        if (strongSelf == nil) {
+            return;
+        }
+
+        [strongSelf timerFired];
+    });
+
+    dispatch_resume(timer);
+
+    NSLog(@"[SleepMode] Timer reset");
 }
 
-- (void)timerFired:(NSTimer *)timer
+- (void)stopTimer
+{
+    if (_timer != nil) {
+        dispatch_source_cancel(_timer);
+        _timer = nil;
+    }
+}
+
+- (void)timerFired
+{
+    if (!_enabled ||
+        !_started ||
+        _deviceLocked ||
+        _isEnteringSleep) {
+        return;
+    }
+
+    NSTimeInterval elapsed =
+        CFAbsoluteTimeGetCurrent() -
+        _lastInteraction;
+
+    if (elapsed < _timeout) {
+        [self resetTimer];
+        return;
+    }
+
+    NSLog(
+        @"[SleepMode] Timeout reached after %.1f seconds",
+        elapsed
+    );
+
+    _isEnteringSleep = YES;
+
+    [self stopTimer];
+
+    [self enterSleepMode];
+}
+
+#pragma mark - User Interaction
+
+- (void)userDidInteract
 {
     if (!_enabled || !_started) {
         return;
     }
 
-    _timer = nil;
+    if (_isEnteringSleep) {
+        return;
+    }
 
-    [self closeRunningApplications];
+    _lastInteraction =
+        CFAbsoluteTimeGetCurrent();
 
-    [self lockScreen];
+    NSLog(@"[SleepMode] User interaction detected");
 
     [self resetTimer];
 }
 
-#pragma mark - Close Applications
-
-- (void)closeRunningApplications
+- (void)resetIdleTimer
 {
-    Class applicationControllerClass =
+    [self userDidInteract];
+}
+
+#pragma mark - Sleep
+
+- (void)enterSleepMode
+{
+    if (!_enabled || _deviceLocked) {
+        _isEnteringSleep = NO;
+        return;
+    }
+
+    NSLog(@"[SleepMode] Timeout reached");
+
+    [self terminateUserApplications];
+
+    [self lockDevice];
+}
+
+#pragma mark - Lock
+
+- (void)lockDevice
+{
+    NSLog(@"[SleepMode] Locking device");
+
+    Class lockManagerClass =
+        NSClassFromString(@"SBLockScreenManager");
+
+    if (lockManagerClass != Nil) {
+
+        id lockManager =
+            [lockManagerClass sharedInstance];
+
+        if (lockManager != nil &&
+            [lockManager respondsToSelector:
+                @selector(lockUIFromSource:withOptions:)]) {
+
+            NSLog(
+                @"[SleepMode] Locking device via SBLockScreenManager"
+            );
+
+            @try {
+                [lockManager
+                    lockUIFromSource:1
+                    withOptions:nil];
+
+                return;
+            }
+            @catch (__unused NSException *exception) {
+            }
+        }
+
+        if (lockManager != nil &&
+            [lockManager respondsToSelector:
+                @selector(_simulateLockButtonPress)]) {
+
+            NSLog(
+                @"[SleepMode] Locking device via _simulateLockButtonPress"
+            );
+
+            @try {
+                [lockManager
+                    _simulateLockButtonPress];
+
+                return;
+            }
+            @catch (__unused NSException *exception) {
+            }
+        }
+    }
+
+    Class backBoardClass =
+        NSClassFromString(@"SBBackBoardController");
+
+    if (backBoardClass != Nil &&
+        [backBoardClass respondsToSelector:
+            @selector(sharedInstance)]) {
+
+        id controller =
+            [backBoardClass sharedInstance];
+
+        if ([controller respondsToSelector:
+                @selector(lockScreen)]) {
+
+            @try {
+                [controller lockScreen];
+                return;
+            }
+            @catch (__unused NSException *exception) {
+            }
+        }
+    }
+
+    NSLog(@"[SleepMode] Unable to lock device");
+}
+
+#pragma mark - Applications
+
+- (void)terminateUserApplications
+{
+    Class controllerClass =
         NSClassFromString(@"SBApplicationController");
 
-    if (applicationControllerClass == Nil) {
+    if (controllerClass == Nil) {
+        NSLog(
+            @"[SleepMode] SBApplicationController unavailable"
+        );
         return;
     }
 
     id controller =
-        [applicationControllerClass sharedInstance];
+        [controllerClass sharedInstance];
 
     if (controller == nil) {
+        NSLog(
+            @"[SleepMode] Cannot get SBApplicationController"
+        );
         return;
     }
 
     NSArray *applications = nil;
 
-    if ([controller respondsToSelector:@selector(allApplications)]) {
-        applications = [controller allApplications];
+    if ([controller respondsToSelector:
+            @selector(allApplications)]) {
+
+        applications =
+            [controller allApplications];
     }
 
     if (![applications isKindOfClass:[NSArray class]]) {
+        NSLog(
+            @"[SleepMode] No running applications found"
+        );
         return;
     }
 
-    Class systemServiceClass =
-        NSClassFromString(@"FBSystemService");
+    Class serviceClass =
+        NSClassFromString(@"FBSSystemService");
 
-    id systemService = nil;
-
-    if (systemServiceClass != Nil &&
-        [systemServiceClass respondsToSelector:@selector(sharedInstance)]) {
-        systemService =
-            [systemServiceClass sharedInstance];
+    if (serviceClass == Nil) {
+        serviceClass =
+            NSClassFromString(@"FBSystemService");
     }
+
+    if (serviceClass == Nil) {
+        NSLog(
+            @"[SleepMode] FBSSystemService unavailable"
+        );
+        return;
+    }
+
+    id service = nil;
+
+    if ([serviceClass respondsToSelector:
+            @selector(sharedService)]) {
+
+        service =
+            [serviceClass sharedService];
+    }
+
+    if (service == nil &&
+        [serviceClass respondsToSelector:
+            @selector(sharedInstance)]) {
+
+        service =
+            [serviceClass sharedInstance];
+    }
+
+    if (service == nil) {
+        NSLog(
+            @"[SleepMode] FBSSystemService unavailable"
+        );
+        return;
+    }
+
+    SEL terminateSelector =
+        @selector(
+            terminateApplication:
+            forReason:
+            andReport:
+            withDescription:
+        );
+
+    if (![service respondsToSelector:terminateSelector]) {
+        NSLog(
+            @"[SleepMode] Termination selector unavailable"
+        );
+        return;
+    }
+
+    NSSet *protectedApplications =
+        [NSSet setWithObjects:
+            @"com.apple.springboard",
+            @"com.apple.Preferences",
+            @"com.apple.WebKit.Networking",
+            @"com.apple.WebKit.WebContent",
+            @"com.apple.WebKit.GPU",
+            @"com.apple.UIKit.pasteboardd",
+            @"com.apple.Pasteboard",
+            nil];
 
     for (id application in applications) {
 
-        if (application == nil) {
-            continue;
-        }
-
         NSString *bundleIdentifier = nil;
 
-        if ([application respondsToSelector:@selector(bundleIdentifier)]) {
+        if ([application respondsToSelector:
+                @selector(bundleIdentifier)]) {
+
             bundleIdentifier =
                 [application bundleIdentifier];
         }
@@ -239,61 +513,118 @@
             continue;
         }
 
-        // Không đóng các thành phần hệ thống.
-        if ([bundleIdentifier isEqualToString:@"com.apple.springboard"] ||
-            [bundleIdentifier isEqualToString:@"com.apple.Preferences"]) {
+        if ([protectedApplications
+                containsObject:bundleIdentifier]) {
+
             continue;
         }
 
-        if (systemService != nil &&
-            [systemService respondsToSelector:
-                @selector(terminateApplication:forReason:andReport:)]) {
+        if ([bundleIdentifier
+                hasPrefix:@"com.apple."]) {
 
-            @try {
-                [systemService
-                    terminateApplication:application
-                    forReason:@"SleepMode"
-                    andReport:NO];
-            }
-            @catch (__unused NSException *exception) {
-            }
+            continue;
+        }
+
+        NSLog(
+            @"[SleepMode] Terminating app: %@",
+            bundleIdentifier
+        );
+
+        @try {
+            [service
+                terminateApplication:application
+                forReason:@"SleepMode automatic idle termination"
+                andReport:NO
+                withDescription:@"SleepMode"];
+        }
+        @catch (__unused NSException *exception) {
         }
     }
 }
 
-#pragma mark - Lock
+#pragma mark - Device State
 
-- (void)lockScreen
+- (void)deviceDidLock
 {
-    Class backBoardControllerClass =
-        NSClassFromString(@"SBBackBoardController");
+    _deviceLocked = YES;
 
-    if (backBoardControllerClass != Nil &&
-        [backBoardControllerClass respondsToSelector:@selector(sharedInstance)]) {
+    [self stopTimer];
 
-        id controller =
-            [backBoardControllerClass sharedInstance];
+    NSLog(@"[SleepMode] DeviceDidLock");
+}
 
-        if ([controller respondsToSelector:@selector(lockScreen)]) {
-            [controller lockScreen];
-            return;
-        }
+- (void)deviceDidUnlock
+{
+    _deviceLocked = NO;
+    _isEnteringSleep = NO;
+
+    NSLog(@"[SleepMode] DeviceDidUnlock");
+
+    if (_enabled && _started) {
+        [self resetTimer];
+    }
+}
+
+#pragma mark - Darwin Notification
+
+static void SleepModeDarwinCallback(
+    CFNotificationCenterRef center,
+    void *observer,
+    CFStringRef name,
+    const void *object,
+    CFDictionaryRef userInfo
+)
+{
+    SleepManager *manager =
+        (__bridge SleepManager *)observer;
+
+    if (manager == nil) {
+        return;
     }
 
-    // Fallback cho các build iOS khác.
-    Class springBoardClass =
-        NSClassFromString(@"SpringBoard");
+    if (name != NULL &&
+        CFStringCompare(
+            name,
+            CFSTR("com.trantu.sleepmode.touch"),
+            0
+        ) == kCFCompareEqualTo) {
 
-    if (springBoardClass != Nil &&
-        [springBoardClass respondsToSelector:@selector(sharedApplication)]) {
-
-        id springBoard =
-            [springBoardClass sharedApplication];
-
-        if ([springBoard respondsToSelector:@selector(_lockScreen)]) {
-            [springBoard _lockScreen];
-        }
+        dispatch_async(
+            dispatch_get_main_queue(),
+            ^{
+                [manager userDidInteract];
+            }
+        );
     }
+}
+
+- (void)installDarwinObserver
+{
+    CFNotificationCenterAddObserver(
+        CFNotificationCenterGetDarwinNotifyCenter(),
+        (__bridge const void *)(self),
+        SleepModeDarwinCallback,
+        CFSTR("com.trantu.sleepmode.touch"),
+        NULL,
+        CFNotificationSuspensionBehaviorDeliverImmediately
+    );
+}
+
+#pragma mark - State
+
+- (void)postStateChanged
+{
+    [[NSNotificationCenter defaultCenter]
+        postNotificationName:
+            @"com.trantu.sleepmode.stateChanged"
+        object:self
+        userInfo:@{
+            @"enabled":
+                @(_enabled),
+
+            @"timeout":
+                @(_timeout)
+        }];
 }
 
 @end

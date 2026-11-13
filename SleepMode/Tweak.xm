@@ -3,31 +3,28 @@
 
 #import "SleepManager.h"
 
-#pragma mark - Touch Reset
+#pragma mark - SpringBoard touch detection
 
 %hook UIApplication
 
 - (void)sendEvent:(UIEvent *)event
 {
-    %orig;
-
-    /*
-     * Giữ đúng cơ chế của bản 1.3.0:
-     * nhận touch trong SpringBoard rồi gọi thẳng resetTimer.
-     * Không tạo Darwin notification cho từng touch.
-     */
+    // Chỉ inject trong SpringBoard theo SleepMode.plist.
+    // Không hook hay inject vào tiến trình ứng dụng người dùng.
     if (event != nil && event.type == UIEventTypeTouches) {
         SleepManager *manager = [SleepManager sharedInstance];
 
-        if (manager.enabled) {
+        if ([manager isEnabled]) {
             [manager resetTimer];
         }
     }
+
+    %orig;
 }
 
 %end
 
-#pragma mark - SpringBoard Startup
+#pragma mark - SpringBoard startup
 
 %hook SpringBoard
 
@@ -35,9 +32,12 @@
 {
     %orig;
 
-    @autoreleasepool {
-        SleepManager *manager = [SleepManager sharedInstance];
+    SleepManager *manager = [SleepManager sharedInstance];
+
+    if ([manager isEnabled]) {
         [manager start];
+    } else {
+        [manager stop];
     }
 }
 

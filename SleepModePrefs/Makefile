@@ -21,6 +21,12 @@ SleepModePrefs_FRAMEWORKS = \
 SleepModePrefs_PRIVATE_FRAMEWORKS = \
 	Preferences
 
+SleepModePrefs_RESOURCE_DIRS = \
+    Resources
+
+SleepModePrefs_RESOURCE_FILES = \
+    Root.plist
+
 SleepModePrefs_INSTALL_PATH = \
 	/Library/PreferenceBundles
 

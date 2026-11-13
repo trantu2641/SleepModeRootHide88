@@ -34,8 +34,23 @@ jobs:
             exit 1
           fi
 
-          if [ ! -f SleepModePrefs/Root.plist ]; then
+          # Root.plist may be stored either at the PreferenceBundle project root
+          # or under Resources/. Normalize it to the location expected by the
+          # rest of this workflow.
+          if [ -f SleepModePrefs/Root.plist ]; then
+            echo "Root.plist: found at SleepModePrefs/Root.plist"
+          elif [ -f SleepModePrefs/Resources/Root.plist ]; then
+            echo "Root.plist: found at SleepModePrefs/Resources/Root.plist"
+            cp SleepModePrefs/Resources/Root.plist SleepModePrefs/Root.plist
+            echo "Root.plist: copied to SleepModePrefs/Root.plist"
+          else
             echo "ERROR: SleepModePrefs/Root.plist missing"
+            echo "Searched:"
+            echo "  SleepModePrefs/Root.plist"
+            echo "  SleepModePrefs/Resources/Root.plist"
+            echo ""
+            echo "Actual SleepModePrefs files:"
+            find SleepModePrefs -maxdepth 3 -type f -print
             exit 1
           fi
 
@@ -636,11 +651,15 @@ jobs:
 
           echo "Found PreferenceBundle: $PREFS_BUNDLE"
 
-          # Root.plist is required by PSListController.
-          # It currently lives at the project root, not under Resources/,
-          # so copy it into the generated PreferenceBundle before packaging.
+          # Root.plist must be present in the generated PreferenceBundle.
+          # It is normalized before the build above, so fail clearly if the
+          # bundle build did not include it.
           if [ ! -f "$PREFS_BUNDLE/Root.plist" ]; then
-            cp SleepModePrefs/Root.plist "$PREFS_BUNDLE/Root.plist"
+            echo "ERROR: Root.plist was not included in SleepModePrefs.bundle."
+            echo ""
+            echo "Bundle contents:"
+            find "$PREFS_BUNDLE" -maxdepth 3 -type f -print || true
+            exit 1
           fi
 
           if [ ! -f "$PREFS_BUNDLE/icon.png" ]; then

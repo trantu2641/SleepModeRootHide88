@@ -6,6 +6,7 @@
 <dict>
     <key>entry</key>
     <dict>
+
         <key>bundle</key>
         <string>SleepModePrefs</string>
 
@@ -23,6 +24,7 @@
 
         <key>icon</key>
         <string>icon.png</string>
+
     </dict>
 </dict>
 </plist>

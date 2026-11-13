@@ -1,21 +1,26 @@
-#import <Foundation/Foundation.h>
+#ifndef SleepManager_h
+#define SleepManager_h
 
-NS_ASSUME_NONNULL_BEGIN
+#import <Foundation/Foundation.h>
 
 @interface SleepManager : NSObject
 
 + (instancetype)sharedInstance;
 
-@property(nonatomic, assign, getter=isEnabled) BOOL enabled;
-@property(nonatomic, assign) NSTimeInterval timeout;
-
 - (void)start;
 - (void)stop;
-- (void)resetTimer;
 
-- (void)lockDevice;
-- (void)terminateUserApps;
+- (void)resetTimer;
+- (void)resetIdleTimer;
+
+- (void)userDidInteract;
+
+- (BOOL)isEnabled;
+- (void)setEnabled:(BOOL)enabled;
+
+- (NSTimeInterval)timeout;
+- (void)setTimeout:(NSTimeInterval)timeout;
 
 @end
 
-NS_ASSUME_NONNULL_END
+#endif

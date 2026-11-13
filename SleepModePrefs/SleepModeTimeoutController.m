@@ -7,21 +7,35 @@
 
 #import "SleepModeTimeoutController.h"
 
+
+static NSString * const kPrefsPath =
+    @"/var/mobile/Library/Preferences/com.trantu.sleepmode.plist";
+
 static NSString * const kSleepModeChangedNotification =
     @"com.trantu.sleepmode.settingsChanged";
 
+static NSString * const kTimeoutKey =
+    @"SleepModeTimeout";
+
+
 @implementation SleepModeTimeoutController
+
 
 - (instancetype)init
 {
     self = [super init];
 
     if (self) {
-        self.title = @"Tự động khóa sau";
+        self.title =
+            @"Tự động khóa sau";
     }
 
     return self;
 }
+
+
+#pragma mark - Specifiers
+
 
 - (NSArray *)specifiers
 {
@@ -30,15 +44,19 @@ static NSString * const kSleepModeChangedNotification =
         NSMutableArray *items =
             [NSMutableArray array];
 
+
         PSSpecifier *group =
             [PSSpecifier groupSpecifierWithName:
                 @"THỜI GIAN"];
+
 
         [group setProperty:
             @"Chọn thời gian không có thao tác trước khi SleepMode khóa iPhone."
             forKey:@"footerText"];
 
+
         [items addObject:group];
+
 
         NSArray *titles = @[
             @"15 giây",
@@ -50,6 +68,7 @@ static NSString * const kSleepModeChangedNotification =
             @"2 giờ"
         ];
 
+
         NSArray *values = @[
             @15,
             @60,
@@ -59,6 +78,7 @@ static NSString * const kSleepModeChangedNotification =
             @3600,
             @7200
         ];
+
 
         for (NSUInteger i = 0;
              i < titles.count;
@@ -74,45 +94,64 @@ static NSString * const kSleepModeChangedNotification =
                     cell:PSLinkCell
                     edit:nil];
 
+
             [item setProperty:
                 @YES
                 forKey:@"enabled"];
+
 
             [item setProperty:
                 values[i]
                 forKey:@"timeoutValue"];
 
+
             [items addObject:item];
         }
+
 
         _specifiers =
             [items mutableCopy];
     }
 
+
     return _specifiers;
 }
 
+
+#pragma mark - Current Value
+
+
 - (NSInteger)currentTimeout
 {
-    NSUserDefaults *defaults =
-        [NSUserDefaults standardUserDefaults];
+    NSDictionary *settings =
+        [NSDictionary dictionaryWithContentsOfFile:
+            kPrefsPath];
+
 
     NSNumber *value =
-        [defaults objectForKey:@"SleepModeTimeout"];
+        settings[kTimeoutKey];
+
 
     if (value == nil) {
         return 15;
     }
 
+
     NSInteger timeout =
         [value integerValue];
+
 
     if (timeout <= 0) {
         return 15;
     }
 
+
     return timeout;
 }
+
+
+#pragma mark - Cell
+
 
 - (UITableViewCell *)tableView:
         (UITableView *)tableView
@@ -122,14 +161,19 @@ static NSString * const kSleepModeChangedNotification =
     UITableViewCell *cell =
         [super tableView:
             tableView
-            cellForRowAtIndexPath:indexPath];
+            cellForRowAtIndexPath:
+                indexPath];
+
 
     PSSpecifier *specifier =
-        [self specifierAtIndexPath:indexPath];
+        [self specifierAtIndexPath:
+            indexPath];
+
 
     NSNumber *timeout =
         [specifier propertyForKey:
             @"timeoutValue"];
+
 
     if (timeout != nil &&
         [timeout integerValue] ==
@@ -144,8 +188,13 @@ static NSString * const kSleepModeChangedNotification =
             UITableViewCellAccessoryNone;
     }
 
+
     return cell;
 }
+
+
+#pragma mark - Selection
+
 
 - (void)tableView:
         (UITableView *)tableView
@@ -153,23 +202,43 @@ static NSString * const kSleepModeChangedNotification =
         (NSIndexPath *)indexPath
 {
     PSSpecifier *specifier =
-        [self specifierAtIndexPath:indexPath];
+        [self specifierAtIndexPath:
+            indexPath];
+
 
     NSNumber *timeout =
         [specifier propertyForKey:
             @"timeoutValue"];
 
+
     if (timeout != nil) {
 
-        NSUserDefaults *defaults =
-            [NSUserDefaults standardUserDefaults];
+        NSMutableDictionary *settings =
+            [[[NSDictionary dictionaryWithContentsOfFile:
+                kPrefsPath]
+                ?: @{}]
+                mutableCopy];
 
-        [defaults setObject:
-            timeout
-            forKey:@"SleepModeTimeout"];
 
-        [defaults synchronize];
+        if (settings == nil) {
+            settings =
+                [NSMutableDictionary dictionary];
+        }
 
+
+        settings[kTimeoutKey] =
+            timeout;
+
+
+        [settings writeToFile:
+            kPrefsPath
+            atomically:YES];
+
+
+        /*
+         * Báo ngay cho SleepManager trong SpringBoard.
+         * Không cần respring.
+         */
         CFNotificationCenterPostNotification(
             CFNotificationCenterGetDarwinNotifyCenter(),
             (__bridge CFStringRef)
@@ -179,21 +248,28 @@ static NSString * const kSleepModeChangedNotification =
             YES
         );
 
+
         [tableView reloadData];
+
 
         [tableView deselectRowAtIndexPath:
             indexPath
             animated:YES];
 
+
         [self.navigationController
             popViewControllerAnimated:YES];
+
 
         return;
     }
 
+
     [super tableView:
         tableView
-        didSelectRowAtIndexPath:indexPath];
+        didSelectRowAtIndexPath:
+            indexPath];
 }
+
 
 @end

@@ -1,44 +1,60 @@
 #import <UIKit/UIKit.h>
+#import <Foundation/Foundation.h>
 
 #import "SleepManager.h"
-
-#pragma mark - UIApplication
 
 %hook UIApplication
 
 - (void)sendEvent:(UIEvent *)event
 {
-    %orig;
+    if (event != nil) {
 
-    if (event != nil &&
-        event.type == UIEventTypeTouches) {
+        BOOL hasTouch =
+            [event allTouches].count > 0;
+
+        if (hasTouch) {
+            [[SleepManager sharedInstance]
+                userDidInteract];
+
+            NSLog(
+                @"[SleepMode] User interaction detected"
+            );
+        }
+    }
+
+    %orig(event);
+}
+
+%end
+
+
+%hook SpringBoard
+
+- (void)applicationDidFinishLaunching:(UIApplication *)application
+{
+    %orig(application);
+
+    NSLog(@"[SleepMode] SpringBoard started");
+
+    [[SleepManager sharedInstance] start];
+}
+
+%end
+
+
+%ctor
+{
+    @autoreleasepool {
+
+        NSLog(@"[SleepMode] Injected into SpringBoard");
 
         SleepManager *manager =
             [SleepManager sharedInstance];
 
-        if (manager.enabled) {
-            [manager resetTimer];
-        }
+        (void)manager;
+
+        NSLog(
+            @"[SleepMode] Core initialized"
+        );
     }
 }
-
-%end
-
-#pragma mark - SpringBoard
-
-%hook SpringBoard
-
-- (void)applicationDidFinishLaunching:
-    (UIApplication *)application
-{
-    %orig;
-
-    SleepManager *manager =
-        [SleepManager sharedInstance];
-
-    if (manager.enabled) {
-        [manager start];
-    }
-}
-
-%end

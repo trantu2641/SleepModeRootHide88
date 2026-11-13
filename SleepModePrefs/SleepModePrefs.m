@@ -43,10 +43,6 @@ static NSString * const kSleepModeChangedNotification =
             [NSMutableArray array];
 
 
-        // ==================================================
-        // GROUP
-        // ==================================================
-
         PSSpecifier *group =
             [PSSpecifier groupSpecifierWithName:@"THỜI GIAN"];
 
@@ -57,154 +53,45 @@ static NSString * const kSleepModeChangedNotification =
         [items addObject:group];
 
 
-        // ==================================================
-        // 1 PHÚT
-        // ==================================================
+        NSArray *titles = @[
+            @"1 phút",
+            @"5 phút",
+            @"15 phút",
+            @"30 phút",
+            @"1 giờ",
+            @"2 giờ"
+        ];
 
-        PSSpecifier *oneMinute =
-            [PSSpecifier preferenceSpecifierNamed:
-                @"1 phút"
-                target:self
-                set:@selector(setTimeoutValue:specifier:)
-                get:@selector(getTimeoutValue:specifier:)
-                detail:nil
-                cell:PSSwitchCell
-                edit:nil];
-
-        [oneMinute setProperty:
-            @60
-            forKey:@"timeoutValue"];
-
-        [oneMinute setProperty:
-            @NO
-            forKey:@"enabled"];
-
-        [items addObject:oneMinute];
-
-
-        // ==================================================
-        // 5 PHÚT
-        // ==================================================
-
-        PSSpecifier *fiveMinutes =
-            [PSSpecifier preferenceSpecifierNamed:
-                @"5 phút"
-                target:self
-                set:@selector(setTimeoutValue:specifier:)
-                get:@selector(getTimeoutValue:specifier:)
-                detail:nil
-                cell:PSSwitchCell
-                edit:nil];
-
-        [fiveMinutes setProperty:
-            @300
-            forKey:@"timeoutValue"];
-
-        [fiveMinutes setProperty:
-            @NO
-            forKey:@"enabled"];
-
-        [items addObject:fiveMinutes];
-
-
-        // ==================================================
-        // 15 PHÚT
-        // ==================================================
-
-        PSSpecifier *fifteenMinutes =
-            [PSSpecifier preferenceSpecifierNamed:
-                @"15 phút"
-                target:self
-                set:@selector(setTimeoutValue:specifier:)
-                get:@selector(getTimeoutValue:specifier:)
-                detail:nil
-                cell:PSSwitchCell
-                edit:nil];
-
-        [fifteenMinutes setProperty:
-            @900
-            forKey:@"timeoutValue"];
-
-        [fifteenMinutes setProperty:
-            @NO
-            forKey:@"enabled"];
-
-        [items addObject:fifteenMinutes];
-
-
-        // ==================================================
-        // 30 PHÚT
-        // ==================================================
-
-        PSSpecifier *thirtyMinutes =
-            [PSSpecifier preferenceSpecifierNamed:
-                @"30 phút"
-                target:self
-                set:@selector(setTimeoutValue:specifier:)
-                get:@selector(getTimeoutValue:specifier:)
-                detail:nil
-                cell:PSSwitchCell
-                edit:nil];
-
-        [thirtyMinutes setProperty:
-            @1800
-            forKey:@"timeoutValue"];
-
-        [thirtyMinutes setProperty:
-            @NO
-            forKey:@"enabled"];
-
-        [items addObject:thirtyMinutes];
-
-
-        // ==================================================
-        // 1 GIỜ
-        // ==================================================
-
-        PSSpecifier *oneHour =
-            [PSSpecifier preferenceSpecifierNamed:
-                @"1 giờ"
-                target:self
-                set:@selector(setTimeoutValue:specifier:)
-                get:@selector(getTimeoutValue:specifier:)
-                detail:nil
-                cell:PSSwitchCell
-                edit:nil];
-
-        [oneHour setProperty:
-            @3600
-            forKey:@"timeoutValue"];
-
-        [oneHour setProperty:
-            @NO
-            forKey:@"enabled"];
-
-        [items addObject:oneHour];
-
-
-        // ==================================================
-        // 2 GIỜ
-        // ==================================================
-
-        PSSpecifier *twoHours =
-            [PSSpecifier preferenceSpecifierNamed:
-                @"2 giờ"
-                target:self
-                set:@selector(setTimeoutValue:specifier:)
-                get:@selector(getTimeoutValue:specifier:)
-                detail:nil
-                cell:PSSwitchCell
-                edit:nil];
-
-        [twoHours setProperty:
+        NSArray *values = @[
+            @60,
+            @300,
+            @900,
+            @1800,
+            @3600,
             @7200
-            forKey:@"timeoutValue"];
+        ];
 
-        [twoHours setProperty:
-            @NO
-            forKey:@"enabled"];
 
-        [items addObject:twoHours];
+        for (NSUInteger i = 0;
+             i < titles.count;
+             i++) {
+
+            PSSpecifier *item =
+                [PSSpecifier preferenceSpecifierNamed:
+                    titles[i]
+                    target:self
+                    set:nil
+                    get:nil
+                    detail:nil
+                    cell:PSLinkCell
+                    edit:nil];
+
+            [item setProperty:
+                values[i]
+                forKey:@"timeoutValue"];
+
+            [items addObject:item];
+        }
 
 
         _specifiers =
@@ -215,86 +102,106 @@ static NSString * const kSleepModeChangedNotification =
 }
 
 
-#pragma mark - Read Timeout
+#pragma mark - Current Timeout
 
-- (id)getTimeoutValue:(PSSpecifier *)specifier
+- (NSInteger)currentTimeout
 {
-    NSNumber *timeout =
-        [specifier propertyForKey:@"timeoutValue"];
-
-    if (timeout == nil) {
-        return @NO;
-    }
-
-
     NSUserDefaults *defaults =
         [[NSUserDefaults alloc]
             initWithSuiteName:kSleepModeDomain];
 
-    NSNumber *current =
+    NSNumber *value =
         [defaults objectForKey:@"SleepModeTimeout"];
 
-    if (current == nil) {
-        current = @300;
+    if (value == nil) {
+        return 300;
     }
 
-
-    if ([current integerValue] ==
-        [timeout integerValue]) {
-
-        return @YES;
-    }
-
-
-    return @NO;
+    return [value integerValue];
 }
 
 
-#pragma mark - Set Timeout
+#pragma mark - Cell
 
-- (void)setTimeoutValue:(id)value
-              specifier:(PSSpecifier *)specifier
+- (UITableViewCell *)tableView:(UITableView *)tableView
+         cellForRowAtIndexPath:(NSIndexPath *)indexPath
 {
+    UITableViewCell *cell =
+        [super tableView:tableView
+   cellForRowAtIndexPath:indexPath];
+
+    PSSpecifier *specifier =
+        [self specifierAtIndexPath:indexPath];
+
     NSNumber *timeout =
         [specifier propertyForKey:@"timeoutValue"];
 
-    if (timeout == nil) {
+    if (timeout != nil) {
+
+        if ([timeout integerValue] ==
+            [self currentTimeout]) {
+
+            cell.accessoryType =
+                UITableViewCellAccessoryCheckmark;
+
+        } else {
+
+            cell.accessoryType =
+                UITableViewCellAccessoryNone;
+        }
+    }
+
+    return cell;
+}
+
+
+#pragma mark - Select
+
+- (void)tableView:(UITableView *)tableView
+ didSelectRowAtIndexPath:(NSIndexPath *)indexPath
+{
+    PSSpecifier *specifier =
+        [self specifierAtIndexPath:indexPath];
+
+    NSNumber *timeout =
+        [specifier propertyForKey:@"timeoutValue"];
+
+    if (timeout != nil) {
+
+        NSUserDefaults *defaults =
+            [[NSUserDefaults alloc]
+                initWithSuiteName:kSleepModeDomain];
+
+        [defaults setObject:
+            timeout
+            forKey:@"SleepModeTimeout"];
+
+        [defaults synchronize];
+
+
+        CFNotificationCenterPostNotification(
+            CFNotificationCenterGetDarwinNotifyCenter(),
+            (__bridge CFStringRef)
+                kSleepModeChangedNotification,
+            NULL,
+            NULL,
+            YES
+        );
+
+
+        [tableView deselectRowAtIndexPath:
+            indexPath
+            animated:YES];
+
+
+        [self.navigationController
+            popViewControllerAnimated:YES];
+
         return;
     }
 
-
-    NSUserDefaults *defaults =
-        [[NSUserDefaults alloc]
-            initWithSuiteName:kSleepModeDomain];
-
-    [defaults setObject:
-        timeout
-        forKey:@"SleepModeTimeout"];
-
-    [defaults synchronize];
-
-
-    // ==================================================
-    // BÁO CHO SLEEPMANAGER RELOAD NGAY
-    // ==================================================
-
-    CFNotificationCenterPostNotification(
-        CFNotificationCenterGetDarwinNotifyCenter(),
-        (__bridge CFStringRef)
-            kSleepModeChangedNotification,
-        NULL,
-        NULL,
-        YES
-    );
-
-
-    // Cập nhật trạng thái các dòng
-    [self reloadSpecifiers];
-
-
-    // Quay lại trang SleepMode
-    [self.navigationController
-        popViewControllerAnimated:YES];
+    [super tableView:tableView
+        didSelectRowAtIndexPath:indexPath];
 }
 
 @end
@@ -323,7 +230,7 @@ static NSString * const kSleepModeChangedNotification =
 }
 
 
-#pragma mark - Specifiers
+#pragma mark - Main Specifiers
 
 - (NSArray *)specifiers
 {
@@ -348,7 +255,7 @@ static NSString * const kSleepModeChangedNotification =
 
 
         // ==================================================
-        // ENABLE
+        // BẬT / TẮT
         // ==================================================
 
         PSSpecifier *enabled =
@@ -385,7 +292,7 @@ static NSString * const kSleepModeChangedNotification =
 
 
         // ==================================================
-        // TIMEOUT
+        // TỰ ĐỘNG KHÓA SAU
         // ==================================================
 
         PSSpecifier *timeout =
@@ -421,7 +328,7 @@ static NSString * const kSleepModeChangedNotification =
 }
 
 
-#pragma mark - Read Preference
+#pragma mark - Read
 
 - (id)readPreferenceValue:(PSSpecifier *)specifier
 {
@@ -449,7 +356,7 @@ static NSString * const kSleepModeChangedNotification =
 }
 
 
-#pragma mark - Write Preference
+#pragma mark - Write
 
 - (void)setPreferenceValue:(id)value
                   specifier:(PSSpecifier *)specifier
@@ -481,10 +388,6 @@ static NSString * const kSleepModeChangedNotification =
 
     [defaults synchronize];
 
-
-    // ==================================================
-    // BÁO CHO SLEEPMANAGER RELOAD NGAY
-    // ==================================================
 
     CFNotificationCenterPostNotification(
         CFNotificationCenterGetDarwinNotifyCenter(),

@@ -6,6 +6,9 @@
 #import <objc/runtime.h>
 
 
+#pragma mark -
+#pragma mark Constants
+
 static NSString * const SMPreferencesDomain =
     @"com.trantu.sleepmode";
 
@@ -22,11 +25,33 @@ static NSString * const SMTouchNotification =
     @"com.trantu.sleepmode.touch";
 
 
+#pragma mark -
+#pragma mark Forward Declarations
+
+static void SMSettingsChangedCallback(
+    CFNotificationCenterRef center,
+    void *observer,
+    CFStringRef name,
+    const void *object,
+    CFDictionaryRef userInfo
+);
+
+static void SMTouchCallback(
+    CFNotificationCenterRef center,
+    void *observer,
+    CFStringRef name,
+    const void *object,
+    CFDictionaryRef userInfo
+);
+
+
+#pragma mark -
+#pragma mark SleepManager
+
 @interface SleepManager ()
 
 @property(nonatomic, strong) NSTimer *timer;
 @property(nonatomic, assign) BOOL terminatingApps;
-@property(nonatomic, assign) BOOL initialized;
 
 @end
 
@@ -36,7 +61,6 @@ static NSString * const SMTouchNotification =
 
 #pragma mark -
 #pragma mark Singleton
-
 
 + (instancetype)sharedInstance
 {
@@ -55,7 +79,6 @@ static NSString * const SMTouchNotification =
 #pragma mark -
 #pragma mark Init
 
-
 - (instancetype)init
 {
     self = [super init];
@@ -65,30 +88,33 @@ static NSString * const SMTouchNotification =
         _enabled = YES;
         _timeout = 300.0;
         _terminatingApps = NO;
-        _initialized = YES;
 
         [self loadPreferences];
 
+
         /*
-         * Nhận thay đổi từ Settings ngay lập tức.
+         * Settings thay đổi -> reload ngay.
          */
         CFNotificationCenterAddObserver(
             CFNotificationCenterGetDarwinNotifyCenter(),
             (__bridge const void *)(self),
             SMSettingsChangedCallback,
-            (__bridge CFStringRef)SMSettingsChangedNotification,
+            (__bridge CFStringRef)
+                SMSettingsChangedNotification,
             NULL,
             CFNotificationSuspensionBehaviorDeliverImmediately
         );
 
+
         /*
-         * Giữ cơ chế touch notification.
+         * Touch notification.
          */
         CFNotificationCenterAddObserver(
             CFNotificationCenterGetDarwinNotifyCenter(),
             (__bridge const void *)(self),
             SMTouchCallback,
-            (__bridge CFStringRef)SMTouchNotification,
+            (__bridge CFStringRef)
+                SMTouchNotification,
             NULL,
             CFNotificationSuspensionBehaviorDeliverImmediately
         );
@@ -103,14 +129,16 @@ static NSString * const SMTouchNotification =
     CFNotificationCenterRemoveObserver(
         CFNotificationCenterGetDarwinNotifyCenter(),
         (__bridge const void *)(self),
-        (__bridge CFStringRef)SMSettingsChangedNotification,
+        (__bridge CFStringRef)
+            SMSettingsChangedNotification,
         NULL
     );
 
     CFNotificationCenterRemoveObserver(
         CFNotificationCenterGetDarwinNotifyCenter(),
         (__bridge const void *)(self),
-        (__bridge CFStringRef)SMTouchNotification,
+        (__bridge CFStringRef)
+            SMTouchNotification,
         NULL
     );
 
@@ -121,7 +149,6 @@ static NSString * const SMTouchNotification =
 
 #pragma mark -
 #pragma mark Preferences
-
 
 - (NSUserDefaults *)preferences
 {
@@ -152,8 +179,8 @@ static NSString * const SMTouchNotification =
      *
      * Cho phép từ 1 giây trở lên.
      *
-     * Quan trọng:
-     * 15 giây phải được đọc bình thường.
+     * Vì Settings có 15 giây nên
+     * không được chặn giá trị < 60.
      */
 
     if ([defaults objectForKey:SMTimeoutKey] != nil) {
@@ -180,7 +207,7 @@ static NSString * const SMTouchNotification =
 - (void)reloadPreferences
 {
     /*
-     * Chỉ thực hiện trên main thread.
+     * Luôn xử lý trên main thread.
      */
 
     if (![NSThread isMainThread]) {
@@ -197,10 +224,23 @@ static NSString * const SMTouchNotification =
     }
 
 
+    /*
+     * Hủy timer cũ.
+     */
+
     [self stop];
+
+
+    /*
+     * Đọc Settings mới.
+     */
 
     [self loadPreferences];
 
+
+    /*
+     * Nếu đang bật thì chạy lại timer.
+     */
 
     if (self.enabled) {
 
@@ -211,7 +251,6 @@ static NSString * const SMTouchNotification =
 
 #pragma mark -
 #pragma mark Timer
-
 
 - (void)start
 {
@@ -229,6 +268,10 @@ static NSString * const SMTouchNotification =
     }
 
 
+    /*
+     * Không để tồn tại timer cũ.
+     */
+
     [self stop];
 
 
@@ -245,6 +288,10 @@ static NSString * const SMTouchNotification =
     NSTimeInterval timeout =
         self.timeout;
 
+
+    /*
+     * Giá trị tối thiểu an toàn.
+     */
 
     if (timeout < 1.0) {
 
@@ -267,9 +314,10 @@ static NSString * const SMTouchNotification =
 
 
     /*
-     * NSRunLoopCommonModes để timer không bị treo
-     * khi SpringBoard chuyển mode.
+     * Common modes để timer tiếp tục hoạt động
+     * khi SpringBoard chuyển run-loop mode.
      */
+
     [[NSRunLoop mainRunLoop]
         addTimer:self.timer
         forMode:NSRunLoopCommonModes];
@@ -341,7 +389,6 @@ static NSString * const SMTouchNotification =
 #pragma mark -
 #pragma mark Timer Fired
 
-
 - (void)timerFired:(NSTimer *)timer
 {
     if (!self.enabled) {
@@ -397,7 +444,6 @@ static NSString * const SMTouchNotification =
 #pragma mark -
 #pragma mark Terminate Applications
 
-
 - (void)terminateUserApps
 {
     if (self.terminatingApps) {
@@ -442,12 +488,12 @@ static NSString * const SMTouchNotification =
 
 
         id applicationController = nil;
-
         id systemService = nil;
 
 
         if ([SBApplicationController
-             respondsToSelector:sharedSelector]) {
+             respondsToSelector:
+             sharedSelector]) {
 
             applicationController =
                 ((id (*)(id, SEL))objc_msgSend)(
@@ -458,7 +504,8 @@ static NSString * const SMTouchNotification =
 
 
         if ([FBSystemService
-             respondsToSelector:sharedSelector]) {
+             respondsToSelector:
+             sharedSelector]) {
 
             systemService =
                 ((id (*)(id, SEL))objc_msgSend)(
@@ -575,6 +622,7 @@ static NSString * const SMTouchNotification =
                 /*
                  * Không đóng SpringBoard.
                  */
+
                 if ([bundleIdentifier
                      isEqualToString:
                      @"com.apple.springboard"]) {
@@ -586,6 +634,7 @@ static NSString * const SMTouchNotification =
                 /*
                  * Không đóng Settings.
                  */
+
                 if ([bundleIdentifier
                      isEqualToString:
                      @"com.apple.Preferences"]) {
@@ -597,6 +646,7 @@ static NSString * const SMTouchNotification =
                 /*
                  * Không đóng SafariViewService.
                  */
+
                 if ([bundleIdentifier
                      hasPrefix:
                      @"com.apple.SafariViewService"]) {
@@ -608,6 +658,7 @@ static NSString * const SMTouchNotification =
                 /*
                  * Không đóng WebKit helper.
                  */
+
                 if ([bundleIdentifier
                      hasPrefix:
                      @"com.apple.WebKit"]) {
@@ -649,7 +700,6 @@ static NSString * const SMTouchNotification =
 
 #pragma mark -
 #pragma mark Lock Device
-
 
 - (void)lockDevice
 {
@@ -763,7 +813,6 @@ static NSString * const SMTouchNotification =
 
 #pragma mark -
 #pragma mark Darwin Callbacks
-
 
 static void SMSettingsChangedCallback(
     CFNotificationCenterRef center,

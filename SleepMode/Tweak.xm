@@ -3,78 +3,142 @@
 
 #import "SleepManager.h"
 
+
 static SleepManager *SMManager(void)
 {
     return [SleepManager sharedInstance];
 }
 
 
+#pragma mark -
+#pragma mark SpringBoard
+
+
 %hook SpringBoard
+
 
 - (void)applicationDidFinishLaunching:(UIApplication *)application
 {
     %orig;
 
-    dispatch_async(dispatch_get_main_queue(), ^{
 
-        SleepManager *manager = SMManager();
+    dispatch_async(
+        dispatch_get_main_queue(),
+        ^{
 
-        if (manager.enabled) {
-            [manager start];
+            SleepManager *manager =
+                SMManager();
+
+
+            NSLog(
+                @"[SleepMode] SpringBoard launched"
+            );
+
+
+            if (manager.enabled) {
+
+                NSLog(
+                    @"[SleepMode] enabled at launch, timeout=%.0f",
+                    manager.timeout
+                );
+
+                [manager start];
+
+            } else {
+
+                NSLog(
+                    @"[SleepMode] disabled at launch"
+                );
+            }
         }
-
-    });
+    );
 }
+
 
 %end
 
 
-/*
- * SpringBoard nhận các touch event trên Home Screen,
- * Control Center, Lock UI trước khi khóa...
- *
- * Mỗi touch sẽ reset timer.
- */
+#pragma mark -
+#pragma mark Touch Detection
+
+
 %hook UIApplication
+
 
 - (void)sendEvent:(UIEvent *)event
 {
+    /*
+     * Chỉ xử lý touch event.
+     */
+
     if (event &&
         event.type == UIEventTypeTouches) {
 
-        NSSet *touches = event.allTouches;
+        NSSet *touches =
+            event.allTouches;
+
 
         if (touches.count > 0) {
 
-            BOOL hasActiveTouch = NO;
+            BOOL hasNewTouch =
+                NO;
 
-            for (UITouch *touch in touches) {
 
-                if (touch.phase == UITouchPhaseBegan ||
-                    touch.phase == UITouchPhaseMoved ||
-                    touch.phase == UITouchPhaseStationary) {
+            for (UITouch *touch
+                 in touches) {
 
-                    hasActiveTouch = YES;
+                /*
+                 * Chỉ reset timer khi có touch
+                 * mới bắt đầu.
+                 *
+                 * Không dùng Moved/Stationary,
+                 * tránh reset timer liên tục.
+                 */
+
+                if (touch.phase ==
+                    UITouchPhaseBegan) {
+
+                    hasNewTouch =
+                        YES;
+
                     break;
                 }
             }
 
-            if (hasActiveTouch) {
-                [SMManager() resetTimer];
+
+            if (hasNewTouch) {
+
+                SleepManager *manager =
+                    SMManager();
+
+
+                if (manager.enabled) {
+
+                    [manager resetTimer];
+                }
             }
         }
     }
 
+
     %orig;
 }
 
+
 %end
+
+
+#pragma mark -
+#pragma mark Constructor
 
 
 %ctor
 {
     /*
-     * Tweak chỉ được load trong SpringBoard
-     * theo SleepMode.plist.
+     * SleepMode.plist chỉ inject vào:
+     *
+     * com.apple.springboard
+     *
+     * nên toàn bộ tweak này chạy trong SpringBoard.
      */
 }

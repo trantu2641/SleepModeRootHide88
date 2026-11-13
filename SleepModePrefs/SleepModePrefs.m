@@ -26,6 +26,68 @@ static NSString * const kSleepModeChangedNotification =
     return self;
 }
 
+#pragma mark - Read
+
+- (id)readPreferenceValue:(PSSpecifier *)specifier
+{
+    NSString *key =
+        [specifier propertyForKey:@"key"];
+
+    if (key.length == 0) {
+        return nil;
+    }
+
+    NSUserDefaults *defaults =
+        [[NSUserDefaults alloc]
+            initWithSuiteName:kSleepModeDomain];
+
+    id value =
+        [defaults objectForKey:key];
+
+    if (value != nil) {
+        return value;
+    }
+
+    return [specifier propertyForKey:@"default"];
+}
+
+#pragma mark - Write
+
+- (void)setPreferenceValue:(id)value
+                  specifier:(PSSpecifier *)specifier
+{
+    NSString *key =
+        [specifier propertyForKey:@"key"];
+
+    if (key.length == 0) {
+        return;
+    }
+
+    NSUserDefaults *defaults =
+        [[NSUserDefaults alloc]
+            initWithSuiteName:kSleepModeDomain];
+
+    if (value != nil) {
+        [defaults setObject:value
+                     forKey:key];
+    } else {
+        [defaults removeObjectForKey:key];
+    }
+
+    [defaults synchronize];
+
+    CFNotificationCenterPostNotification(
+        CFNotificationCenterGetDarwinNotifyCenter(),
+        (__bridge CFStringRef)
+            kSleepModeChangedNotification,
+        NULL,
+        NULL,
+        YES
+    );
+
+    [self reloadSpecifier:specifier];
+}
+
 #pragma mark - Specifiers
 
 - (NSArray *)specifiers
@@ -81,9 +143,12 @@ static NSString * const kSleepModeChangedNotification =
         /*
          * TIMEOUT
          *
-         * QUAN TRỌNG:
-         * PSLinkListCell phải dùng PSListItemsController.
-         * Danh sách phải dùng validTitles / validValues.
+         * PSLinkListCell
+         * -> PSListItemsController
+         *
+         * Dùng values + titleDictionary vì đây là cách
+         * Preferences framework xử lý list specifier
+         * được tạo trực tiếp bằng code.
          */
         PSSpecifier *timeout =
             [PSSpecifier preferenceSpecifierNamed:
@@ -107,27 +172,41 @@ static NSString * const kSleepModeChangedNotification =
             @300
             forKey:@"default"];
 
-        [timeout setProperty:
-            @[
-                @"1 phút",
-                @"5 phút",
-                @"15 phút",
-                @"30 phút",
-                @"1 giờ",
-                @"2 giờ"
-            ]
-            forKey:@"validTitles"];
+        NSArray *values = @[
+            @60,
+            @300,
+            @900,
+            @1800,
+            @3600,
+            @7200
+        ];
+
+        NSArray *titles = @[
+            @"1 phút",
+            @"5 phút",
+            @"15 phút",
+            @"30 phút",
+            @"1 giờ",
+            @"2 giờ"
+        ];
+
+        NSMutableDictionary *titleDictionary =
+            [NSMutableDictionary dictionary];
+
+        for (NSUInteger i = 0;
+             i < values.count && i < titles.count;
+             i++) {
+
+            [titleDictionary setObject:titles[i]
+                                forKey:values[i]];
+        }
 
         [timeout setProperty:
-            @[
-                @60,
-                @300,
-                @900,
-                @1800,
-                @3600,
-                @7200
-            ]
-            forKey:@"validValues"];
+            values
+            forKey:@"values"];
+
+        timeout.titleDictionary =
+            titleDictionary;
 
         [timeout setProperty:
             kSleepModeChangedNotification
@@ -140,77 +219,6 @@ static NSString * const kSleepModeChangedNotification =
     }
 
     return _specifiers;
-}
-
-#pragma mark - Read
-
-- (id)readPreferenceValue:(PSSpecifier *)specifier
-{
-    NSString *key =
-        [specifier propertyForKey:@"key"];
-
-    if (key.length == 0) {
-        return nil;
-    }
-
-    NSUserDefaults *defaults =
-        [[NSUserDefaults alloc]
-            initWithSuiteName:kSleepModeDomain];
-
-    id value =
-        [defaults objectForKey:key];
-
-    if (value != nil) {
-        return value;
-    }
-
-    return [specifier propertyForKey:@"default"];
-}
-
-#pragma mark - Write
-
-- (void)setPreferenceValue:(id)value
-                  specifier:(PSSpecifier *)specifier
-{
-    NSString *key =
-        [specifier propertyForKey:@"key"];
-
-    if (key.length == 0) {
-        return;
-    }
-
-    NSUserDefaults *defaults =
-        [[NSUserDefaults alloc]
-            initWithSuiteName:kSleepModeDomain];
-
-    if (value != nil) {
-
-        [defaults setObject:value
-                     forKey:key];
-
-    } else {
-
-        [defaults removeObjectForKey:key];
-    }
-
-    [defaults synchronize];
-
-    /*
-     * Báo cho SleepManager áp dụng ngay.
-     */
-    CFNotificationCenterPostNotification(
-        CFNotificationCenterGetDarwinNotifyCenter(),
-        (__bridge CFStringRef)
-            kSleepModeChangedNotification,
-        NULL,
-        NULL,
-        YES
-    );
-
-    /*
-     * Cập nhật giá trị đang hiển thị.
-     */
-    [self reloadSpecifier:specifier];
 }
 
 #pragma mark - View

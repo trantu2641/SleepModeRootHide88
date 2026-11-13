@@ -26,6 +26,37 @@ static NSString * const kSleepModeChangedNotification =
     return self;
 }
 
+#pragma mark - Specifiers
+
+- (NSArray *)specifiers
+{
+    if (_specifiers == nil) {
+
+        /*
+         * QUAN TRỌNG:
+         * Load trực tiếp Root.plist từ chính PreferenceBundle.
+         * Không tự tạo PSLinkListCell bằng code nữa.
+         */
+        NSBundle *bundle = self.bundle;
+
+        if (bundle == nil) {
+            bundle = [NSBundle bundleForClass:[self class]];
+        }
+
+        _specifiers =
+            [self loadSpecifiersFromPlistName:@"Root"
+                                       target:self
+                                       bundle:bundle];
+
+        if (_specifiers == nil) {
+            _specifiers =
+                [NSMutableArray array];
+        }
+    }
+
+    return _specifiers;
+}
+
 #pragma mark - Read
 
 - (id)readPreferenceValue:(PSSpecifier *)specifier
@@ -76,6 +107,9 @@ static NSString * const kSleepModeChangedNotification =
 
     [defaults synchronize];
 
+    /*
+     * Báo cho SleepManager áp dụng ngay.
+     */
     CFNotificationCenterPostNotification(
         CFNotificationCenterGetDarwinNotifyCenter(),
         (__bridge CFStringRef)
@@ -86,139 +120,6 @@ static NSString * const kSleepModeChangedNotification =
     );
 
     [self reloadSpecifier:specifier];
-}
-
-#pragma mark - Specifiers
-
-- (NSArray *)specifiers
-{
-    if (_specifiers == nil) {
-
-        NSMutableArray *items =
-            [NSMutableArray array];
-
-        /*
-         * GROUP
-         */
-        PSSpecifier *group =
-            [PSSpecifier groupSpecifierWithName:@"SLEEPMODE"];
-
-        [group setProperty:
-            @"Tự động khóa iPhone và đóng ứng dụng sau thời gian không sử dụng."
-            forKey:@"footerText"];
-
-        [items addObject:group];
-
-        /*
-         * ENABLE
-         */
-        PSSpecifier *enabled =
-            [PSSpecifier preferenceSpecifierNamed:
-                @"Bật SleepMode"
-                target:self
-                set:@selector(setPreferenceValue:specifier:)
-                get:@selector(readPreferenceValue:)
-                detail:nil
-                cell:PSSwitchCell
-                edit:nil];
-
-        [enabled setProperty:
-            @"SleepModeEnabled"
-            forKey:@"key"];
-
-        [enabled setProperty:
-            kSleepModeDomain
-            forKey:@"defaults"];
-
-        [enabled setProperty:
-            @YES
-            forKey:@"default"];
-
-        [enabled setProperty:
-            kSleepModeChangedNotification
-            forKey:@"PostNotification"];
-
-        [items addObject:enabled];
-
-        /*
-         * TIMEOUT
-         *
-         * PSLinkListCell
-         * -> PSListItemsController
-         *
-         * Dùng values + titleDictionary vì đây là cách
-         * Preferences framework xử lý list specifier
-         * được tạo trực tiếp bằng code.
-         */
-        PSSpecifier *timeout =
-            [PSSpecifier preferenceSpecifierNamed:
-                @"Tự động khóa sau"
-                target:self
-                set:@selector(setPreferenceValue:specifier:)
-                get:@selector(readPreferenceValue:)
-                detail:NSClassFromString(@"PSListItemsController")
-                cell:PSLinkListCell
-                edit:nil];
-
-        [timeout setProperty:
-            @"SleepModeTimeout"
-            forKey:@"key"];
-
-        [timeout setProperty:
-            kSleepModeDomain
-            forKey:@"defaults"];
-
-        [timeout setProperty:
-            @300
-            forKey:@"default"];
-
-        NSArray *values = @[
-            @60,
-            @300,
-            @900,
-            @1800,
-            @3600,
-            @7200
-        ];
-
-        NSArray *titles = @[
-            @"1 phút",
-            @"5 phút",
-            @"15 phút",
-            @"30 phút",
-            @"1 giờ",
-            @"2 giờ"
-        ];
-
-        NSMutableDictionary *titleDictionary =
-            [NSMutableDictionary dictionary];
-
-        for (NSUInteger i = 0;
-             i < values.count && i < titles.count;
-             i++) {
-
-            [titleDictionary setObject:titles[i]
-                                forKey:values[i]];
-        }
-
-        [timeout setProperty:
-            values
-            forKey:@"values"];
-
-        timeout.titleDictionary =
-            titleDictionary;
-
-        [timeout setProperty:
-            kSleepModeChangedNotification
-            forKey:@"PostNotification"];
-
-        [items addObject:timeout];
-
-        _specifiers =
-            [items mutableCopy];
-    }
-
-    return _specifiers;
 }
 
 #pragma mark - View

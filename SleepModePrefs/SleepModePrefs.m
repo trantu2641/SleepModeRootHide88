@@ -206,6 +206,7 @@ static NSString * const kChangedNotification =
     [super viewDidLoad];
 
     self.title = @"SleepMode";
+    
 }
 
 @end

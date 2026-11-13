@@ -1,32 +1,18 @@
 #import <UIKit/UIKit.h>
 #import <Foundation/Foundation.h>
-#import <objc/runtime.h>
 
 #import "SleepManager.h"
 
-static void (*orig_UIApplication_sendEvent)(UIApplication *self,
-                                            SEL _cmd,
-                                            UIEvent *event);
+%hook UIApplication
 
-static void sm_UIApplication_sendEvent(UIApplication *self,
-                                       SEL _cmd,
-                                       UIEvent *event)
+- (void)sendEvent:(UIEvent *)event
 {
-    if (orig_UIApplication_sendEvent != NULL) {
-        orig_UIApplication_sendEvent(self, _cmd, event);
-    }
+    %orig;
 
     /*
-     * Chỉ xử lý event cảm ứng.
-     *
-     * Không gọi:
-     * - allTouches
-     * - allPresses
-     * - touchesForView:
-     * - window
-     * - view
-     *
-     * để tránh can thiệp sâu vào event pipeline của SpringBoard.
+     * Chỉ reset khi có event cảm ứng.
+     * Không truy cập touches / presses / view / window
+     * để tránh làm hỏng event pipeline của SpringBoard.
      */
     if (event != nil &&
         [event type] == UIEventTypeTouches) {
@@ -37,32 +23,15 @@ static void sm_UIApplication_sendEvent(UIApplication *self,
     }
 }
 
+%end
+
 %ctor
 {
     @autoreleasepool {
 
-        Class UIApplicationClass = objc_getClass("UIApplication");
-
-        if (UIApplicationClass != Nil) {
-
-            SEL sendEventSEL = @selector(sendEvent:);
-
-            Method method =
-                class_getInstanceMethod(UIApplicationClass,
-                                         sendEventSEL);
-
-            if (method != NULL) {
-
-                MSHookMessageEx(UIApplicationClass,
-                                sendEventSEL,
-                                (IMP)sm_UIApplication_sendEvent,
-                                (IMP *)&orig_UIApplication_sendEvent);
-            }
-        }
-
         /*
-         * Khởi động SleepManager sau khi SpringBoard đã ổn định.
-         * Không khởi tạo ngay trong lúc dylib vừa được inject.
+         * Chờ SpringBoard khởi động ổn định rồi mới
+         * khởi tạo SleepManager.
          */
         dispatch_after(
             dispatch_time(DISPATCH_TIME_NOW,

@@ -1,11 +1,10 @@
 Package: com.trantu.sleepmode
 Name: SleepMode RootHide
-Version: 1.3.1
+Version: 1.1.0-settings1
 Architecture: iphoneos-arm64
-Description: Tự động đóng ứng dụng và khóa thiết bị khi không có thao tác chạm.
+Description: Tự động đóng ứng dụng và khóa iPhone khi không có thao tác chạm. Cấu hình trong Cài đặt.
 Maintainer: Tu Tu
 Author: Tu Tu
 Section: Tweaks
 Priority: optional
 Depends: firmware (>= 15.0)
-Icon: https://raw.githubusercontent.com/trantu2641/SleepModeRootHide88/feature/core/icons/sleepmode.png

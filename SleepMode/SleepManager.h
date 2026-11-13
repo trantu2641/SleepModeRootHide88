@@ -2,36 +2,15 @@
 #define SleepManager_h
 
 #import <Foundation/Foundation.h>
-#import <dispatch/dispatch.h>
 
-@interface SleepManager : NSObject {
-    BOOL _enabled;
-    NSTimeInterval _timeout;
-
-    BOOL _started;
-    BOOL _deviceLocked;
-    BOOL _isEnteringSleep;
-
-    NSTimeInterval _lastInteraction;
-
-    dispatch_source_t _timer;
-}
-
+/* Runtime interface exported by the untouched SleepMode 1.1.0 core. */
+@interface SleepManager : NSObject
 + (instancetype)sharedInstance;
-
 - (void)start;
-- (void)stop;
-
-- (void)resetTimer;
-- (void)resetIdleTimer;
 - (void)userDidInteract;
-
-- (BOOL)isEnabled;
 - (void)setEnabled:(BOOL)enabled;
-
-- (NSTimeInterval)timeout;
 - (void)setTimeout:(NSTimeInterval)timeout;
-
+- (BOOL)isEnabled;
 @end
 
 #endif

@@ -28,10 +28,13 @@ static NSString * const kSleepModeChangedNotification =
 - (NSArray *)specifiers
 {
     if (_specifiers == nil) {
-        NSMutableArray *items = [NSMutableArray array];
+
+        NSMutableArray *items =
+            [NSMutableArray array];
 
         PSSpecifier *group =
-            [PSSpecifier groupSpecifierWithName:@"THỜI GIAN"];
+            [PSSpecifier groupSpecifierWithName:
+                @"THỜI GIAN"];
 
         [group setProperty:
             @"Chọn thời gian không có thao tác trước khi SleepMode khóa iPhone."
@@ -59,22 +62,32 @@ static NSString * const kSleepModeChangedNotification =
             @7200
         ];
 
-        for (NSUInteger i = 0; i < titles.count; i++) {
-            PSSpecifier *item =
-                [PSSpecifier preferenceSpecifierNamed:titles[i]
-                                                target:self
-                                                   set:nil
-                                                   get:nil
-                                                detail:nil
-                                                  cell:PSLinkCell
-                                                   edit:nil];
+        for (NSUInteger i = 0;
+             i < titles.count;
+             i++) {
 
-            [item setProperty:@YES forKey:@"enabled"];
-            [item setProperty:values[i] forKey:@"timeoutValue"];
+            PSSpecifier *item =
+                [PSSpecifier
+                    preferenceSpecifierNamed:
+                        titles[i]
+                    target:self
+                    set:nil
+                    get:nil
+                    detail:nil
+                    cell:PSLinkCell
+                    edit:nil];
+
+            [item setProperty:@YES
+                       forKey:@"enabled"];
+
+            [item setProperty:values[i]
+                       forKey:@"timeoutValue"];
+
             [items addObject:item];
         }
 
-        _specifiers = [items mutableCopy];
+        _specifiers =
+            [items mutableCopy];
     }
 
     return _specifiers;
@@ -83,69 +96,121 @@ static NSString * const kSleepModeChangedNotification =
 - (NSInteger)currentTimeout
 {
     NSUserDefaults *defaults =
-        [[NSUserDefaults alloc] initWithSuiteName:kSleepModeDomain];
+        [[NSUserDefaults alloc]
+            initWithSuiteName:
+                kSleepModeDomain];
 
-    NSNumber *value = [defaults objectForKey:@"SleepModeTimeout"];
+    NSNumber *value =
+        [defaults objectForKey:
+            @"SleepModeTimeout"];
 
+    /*
+     * Mặc định phải khớp core:
+     * 15 giây.
+     */
     if (value == nil) {
         return 15;
     }
 
-    NSInteger timeout = [value integerValue];
+    NSInteger timeout =
+        [value integerValue];
 
-    if (timeout < 15 || timeout > 7200) {
+    if (timeout < 15 ||
+        timeout > 7200) {
+
         return 15;
     }
 
     return timeout;
 }
 
-- (UITableViewCell *)tableView:(UITableView *)tableView
-         cellForRowAtIndexPath:(NSIndexPath *)indexPath
+- (UITableViewCell *)tableView:
+    (UITableView *)tableView
+    cellForRowAtIndexPath:
+        (NSIndexPath *)indexPath
 {
     UITableViewCell *cell =
-        [super tableView:tableView cellForRowAtIndexPath:indexPath];
+        [super tableView:
+            tableView
+        cellForRowAtIndexPath:
+            indexPath];
 
-    PSSpecifier *specifier = [self specifierAtIndexPath:indexPath];
-    NSNumber *timeout = [specifier propertyForKey:@"timeoutValue"];
+    PSSpecifier *specifier =
+        [self specifierAtIndexPath:
+            indexPath];
 
-    if (timeout != nil && [timeout integerValue] == [self currentTimeout]) {
-        cell.accessoryType = UITableViewCellAccessoryCheckmark;
+    NSNumber *timeout =
+        [specifier propertyForKey:
+            @"timeoutValue"];
+
+    if (timeout != nil &&
+        [timeout integerValue] ==
+            [self currentTimeout]) {
+
+        cell.accessoryType =
+            UITableViewCellAccessoryCheckmark;
+
     } else {
-        cell.accessoryType = UITableViewCellAccessoryNone;
+
+        cell.accessoryType =
+            UITableViewCellAccessoryNone;
     }
 
     return cell;
 }
 
-- (void)tableView:(UITableView *)tableView
- didSelectRowAtIndexPath:(NSIndexPath *)indexPath
+- (void)tableView:
+    (UITableView *)tableView
+    didSelectRowAtIndexPath:
+        (NSIndexPath *)indexPath
 {
-    PSSpecifier *specifier = [self specifierAtIndexPath:indexPath];
-    NSNumber *timeout = [specifier propertyForKey:@"timeoutValue"];
+    PSSpecifier *specifier =
+        [self specifierAtIndexPath:
+            indexPath];
+
+    NSNumber *timeout =
+        [specifier propertyForKey:
+            @"timeoutValue"];
 
     if (timeout != nil) {
-        NSUserDefaults *defaults =
-            [[NSUserDefaults alloc] initWithSuiteName:kSleepModeDomain];
 
-        [defaults setObject:timeout forKey:@"SleepModeTimeout"];
+        NSUserDefaults *defaults =
+            [[NSUserDefaults alloc]
+                initWithSuiteName:
+                    kSleepModeDomain];
+
+        [defaults setObject:
+            timeout
+            forKey:
+                @"SleepModeTimeout"];
+
         [defaults synchronize];
 
         CFNotificationCenterPostNotification(
             CFNotificationCenterGetDarwinNotifyCenter(),
-            (__bridge CFStringRef)kSleepModeChangedNotification,
+            (__bridge CFStringRef)
+                kSleepModeChangedNotification,
             NULL,
             NULL,
             YES
         );
 
         [tableView reloadData];
-        [tableView deselectRowAtIndexPath:indexPath animated:YES];
-        [self.navigationController popViewControllerAnimated:YES];
+
+        [tableView deselectRowAtIndexPath:
+            indexPath
+            animated:YES];
+
+        [self.navigationController
+            popViewControllerAnimated:YES];
+
         return;
     }
 
-    [super tableView:tableView didSelectRowAtIndexPath:indexPath];
+    [super tableView:
+        tableView
+        didSelectRowAtIndexPath:
+            indexPath];
 }
 
 @end

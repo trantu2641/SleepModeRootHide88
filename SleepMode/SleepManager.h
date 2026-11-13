@@ -2,6 +2,7 @@
 #define SleepManager_h
 
 #import <Foundation/Foundation.h>
+#import <dispatch/dispatch.h>
 
 @interface SleepManager : NSObject {
     BOOL _enabled;

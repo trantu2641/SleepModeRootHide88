@@ -41,8 +41,15 @@ jobs:
           pwd
           ls -la
 
-          test -d SleepMode
-          test -d SleepModePrefs
+          if [ ! -d "SleepMode" ]; then
+            echo "ERROR: SleepMode directory not found."
+            exit 1
+          fi
+
+          if [ ! -d "SleepModePrefs" ]; then
+            echo "ERROR: SleepModePrefs directory not found."
+            exit 1
+          fi
 
           echo ""
           echo "SleepMode: OK"
@@ -58,7 +65,7 @@ jobs:
         run: |
           set -e
 
-          FILES="
+          REQUIRED_FILES="
           SleepMode/Makefile
           SleepMode/SleepMode.plist
           SleepMode/Tweak.xm
@@ -71,10 +78,11 @@ jobs:
           SleepModePrefs/entry.plist
           "
 
-          for FILE in $FILES
+          for FILE in $REQUIRED_FILES
           do
             if [ ! -f "$FILE" ]; then
-              echo "ERROR: Missing $FILE"
+              echo "ERROR: Missing file:"
+              echo "$FILE"
               exit 1
             fi
 
@@ -91,10 +99,20 @@ jobs:
         run: |
           set -e
 
-          plutil -lint SleepMode/SleepMode.plist
-          plutil -lint SleepModePrefs/Resources/Root.plist
-          plutil -lint SleepModePrefs/entry.plist
+          echo "================================"
+          echo "VALIDATE PLIST"
+          echo "================================"
 
+          plutil -lint \
+            SleepMode/SleepMode.plist
+
+          plutil -lint \
+            SleepModePrefs/Resources/Root.plist
+
+          plutil -lint \
+            SleepModePrefs/entry.plist
+
+          echo ""
           echo "Plist validation: OK"
 
 
@@ -105,8 +123,10 @@ jobs:
       - name: Show project files
         working-directory: ${{ github.workspace }}
         run: |
+          set -e
+
           echo "================================"
-          echo "SLEEPMODE"
+          echo "SLEEPMODE FILES"
           echo "================================"
 
           find SleepMode \
@@ -116,7 +136,7 @@ jobs:
 
           echo ""
           echo "================================"
-          echo "SLEEPMODE PREFS"
+          echo "SLEEPMODE PREFS FILES"
           echo "================================"
 
           find SleepModePrefs \
@@ -126,22 +146,27 @@ jobs:
 
 
       # =====================================================
-      # 6. XCODE
+      # 6. SELECT XCODE
       # =====================================================
 
-      - name: Select Xcode
+      - name: Select Xcode 26.6
         run: |
           set -e
 
-          XCODE="/Applications/Xcode_26.6.app"
+          XCODE_PATH="/Applications/Xcode_26.6.app"
 
-          if [ ! -d "$XCODE" ]; then
-            echo "ERROR: Xcode 26.6 not found"
-            ls -la /Applications | grep Xcode || true
+          if [ ! -d "$XCODE_PATH" ]; then
+            echo "ERROR: Xcode 26.6 not found."
+
+            echo ""
+            echo "Available Xcode installations:"
+            ls -d /Applications/Xcode*.app 2>/dev/null || true
+
             exit 1
           fi
 
-          sudo xcode-select -s "$XCODE/Contents/Developer"
+          sudo xcode-select \
+            -s "$XCODE_PATH/Contents/Developer"
 
           echo "================================"
           echo "XCODE"
@@ -152,7 +177,7 @@ jobs:
 
 
       # =====================================================
-      # 7. DEPENDENCIES
+      # 7. INSTALL DEPENDENCIES
       # =====================================================
 
       - name: Install dependencies
@@ -172,7 +197,7 @@ jobs:
 
 
       # =====================================================
-      # 8. INSTALL THEOS
+      # 8. INSTALL ROOT HIDE THEOS
       # =====================================================
 
       - name: Install RootHide Theos
@@ -188,6 +213,7 @@ jobs:
 
           echo "THEOS=$HOME/theos" >> "$GITHUB_ENV"
 
+          echo ""
           echo "Theos installed."
 
 
@@ -201,13 +227,22 @@ jobs:
 
           export THEOS="$HOME/theos"
 
-          chmod +x "$THEOS/bin/update-theos"
+          chmod +x \
+            "$THEOS/bin/update-theos"
 
           "$THEOS/bin/update-theos"
 
-          test -d "$THEOS/vendor/include"
-          test -d "$THEOS/vendor/lib"
+          if [ ! -d "$THEOS/vendor/include" ]; then
+            echo "ERROR: THEOS vendor/include missing."
+            exit 1
+          fi
 
+          if [ ! -d "$THEOS/vendor/lib" ]; then
+            echo "ERROR: THEOS vendor/lib missing."
+            exit 1
+          fi
+
+          echo ""
           echo "Theos bootstrap: OK"
 
 
@@ -221,10 +256,17 @@ jobs:
 
           export THEOS="$HOME/theos"
 
+          rm -rf /tmp/dm.pl
+
           git clone \
             --depth=1 \
             https://github.com/theos/dm.pl.git \
             /tmp/dm.pl
+
+          if [ ! -f "/tmp/dm.pl/dm.pl" ]; then
+            echo "ERROR: dm.pl not found."
+            exit 1
+          fi
 
           cp \
             /tmp/dm.pl/dm.pl \
@@ -235,11 +277,12 @@ jobs:
 
           echo "$THEOS/bin" >> "$GITHUB_PATH"
 
+          echo ""
           echo "dm.pl: OK"
 
 
       # =====================================================
-      # 11. INSTALL SDK
+      # 11. INSTALL IPHONEOS 16.5 SDK
       # =====================================================
 
       - name: Install iPhoneOS 16.5 SDK
@@ -258,7 +301,7 @@ jobs:
             /tmp/theos-sdks
 
           if [ ! -d "/tmp/theos-sdks/iPhoneOS16.5.sdk" ]; then
-            echo "ERROR: iPhoneOS16.5.sdk not found"
+            echo "ERROR: iPhoneOS16.5.sdk not found."
             exit 1
           fi
 
@@ -266,28 +309,77 @@ jobs:
             "/tmp/theos-sdks/iPhoneOS16.5.sdk" \
             "$THEOS/sdks/"
 
+          echo ""
           echo "iPhoneOS16.5.sdk: OK"
 
 
       # =====================================================
-      # 12. CLEAN
+      # 12. VERIFY BUILD ENVIRONMENT
       # =====================================================
 
-      - name: Clean previous build
+      - name: Verify build environment
         working-directory: ${{ github.workspace }}
         run: |
           set -e
 
           export THEOS="$HOME/theos"
 
-          make -C SleepModePrefs clean || true
-          make -C SleepMode clean || true
+          echo "================================"
+          echo "BUILD ENVIRONMENT"
+          echo "================================"
 
-          rm -rf /tmp/sleepmode-final
+          echo "Workspace:"
+          pwd
+
+          echo ""
+          echo "THEOS:"
+          echo "$THEOS"
+
+          echo ""
+          echo "SDK:"
+          ls -ld \
+            "$THEOS/sdks/iPhoneOS16.5.sdk"
+
+          echo ""
+          echo "dm.pl:"
+          ls -l \
+            "$THEOS/bin/dm.pl"
+
+          echo ""
+          echo "Environment: OK"
 
 
       # =====================================================
-      # 13. BUILD PREFERENCE BUNDLE
+      # 13. CLEAN OLD BUILD
+      # =====================================================
+
+      - name: Clean old build
+        working-directory: ${{ github.workspace }}
+        run: |
+          set -e
+
+          export THEOS="$HOME/theos"
+
+          echo "================================"
+          echo "CLEAN"
+          echo "================================"
+
+          make \
+            -C SleepModePrefs \
+            clean || true
+
+          make \
+            -C SleepMode \
+            clean || true
+
+          rm -rf \
+            /tmp/sleepmode-final \
+            /tmp/sleepmode-check \
+            /tmp/sleepmode-prefs
+
+
+      # =====================================================
+      # 14. BUILD SLEEPMODE PREFS BUNDLE
       # =====================================================
 
       - name: Build SleepModePrefs
@@ -303,8 +395,13 @@ jobs:
 
           make \
             -C SleepModePrefs \
-            package \
+            all \
             THEOS_PACKAGE_SCHEME=roothide
+
+          echo ""
+          echo "================================"
+          echo "FIND SLEEPMODE PREFS BUNDLE"
+          echo "================================"
 
           PREFS_BUNDLE="$(
             find SleepModePrefs/.theos \
@@ -327,29 +424,62 @@ jobs:
           fi
 
           if [ -z "$PREFS_BUNDLE" ]; then
-            echo "ERROR: SleepModePrefs.bundle not found"
-            find SleepModePrefs -type d -name "*.bundle" -print
+            echo "ERROR: SleepModePrefs.bundle not found."
+
+            echo ""
+            echo "Generated files:"
+            find SleepMode/.theos SleepModePrefs/.theos \
+              -maxdepth 6 \
+              -print \
+              2>/dev/null || true
+
             exit 1
           fi
 
           echo ""
-          echo "Bundle:"
+          echo "Found:"
           echo "$PREFS_BUNDLE"
 
-          test -f "$PREFS_BUNDLE/Root.plist"
-          test -f "$PREFS_BUNDLE/icon.png"
+          if [ ! -f "$PREFS_BUNDLE/SleepModePrefs" ]; then
+            echo "ERROR: SleepModePrefs executable missing."
+            exit 1
+          fi
 
-          plutil -lint "$PREFS_BUNDLE/Root.plist"
+          if [ ! -f "$PREFS_BUNDLE/Root.plist" ]; then
+            echo "ERROR: Root.plist missing from bundle."
+            exit 1
+          fi
+
+          if [ ! -f "$PREFS_BUNDLE/icon.png" ]; then
+            echo "ERROR: icon.png missing from bundle."
+            exit 1
+          fi
+
+          echo ""
+          echo "================================"
+          echo "VALIDATE BUNDLE"
+          echo "================================"
+
+          plutil -lint \
+            "$PREFS_BUNDLE/Root.plist"
 
           echo ""
           echo "SleepModePrefs.bundle: OK"
+          echo "Root.plist: OK"
+          echo "icon.png: OK"
+
+          mkdir -p /tmp/sleepmode-prefs
+
+          cp -R \
+            "$PREFS_BUNDLE" \
+            /tmp/sleepmode-prefs/SleepModePrefs.bundle
 
 
       # =====================================================
-      # 14. BUILD MAIN TWEAK
+      # 15. BUILD MAIN SLEEPMODE PACKAGE
       # =====================================================
 
-      - name: Build SleepMode
+      - name: Build SleepMode package
         working-directory: ${{ github.workspace }}
         run: |
           set -e
@@ -376,7 +506,16 @@ jobs:
           )"
 
           if [ -z "$MAIN_DEB" ]; then
-            echo "ERROR: SleepMode .deb not found"
+            echo "ERROR: SleepMode .deb was not generated."
+
+            echo ""
+            echo "Package directory:"
+            find SleepMode \
+              -maxdepth 3 \
+              -type f \
+              -name "*.deb" \
+              -print || true
+
             exit 1
           fi
 
@@ -386,10 +525,10 @@ jobs:
 
 
       # =====================================================
-      # 15. MERGE PREFERENCE BUNDLE
+      # 16. MERGE PREFS INTO DEB
       # =====================================================
 
-      - name: Merge SleepModePrefs into final DEB
+      - name: Merge SleepModePrefs into DEB
         working-directory: ${{ github.workspace }}
         run: |
           set -e
@@ -403,42 +542,51 @@ jobs:
               | head -n 1
           )"
 
-          PREFS_BUNDLE="$(
-            find SleepModePrefs/.theos \
-              -type d \
-              -name "SleepModePrefs.bundle" \
-              -print \
-              2>/dev/null \
-              | head -n 1
-          )"
+          PREFS_BUNDLE="/tmp/sleepmode-prefs/SleepModePrefs.bundle"
 
-          if [ -z "$PREFS_BUNDLE" ]; then
-            PREFS_BUNDLE="$(
-              find SleepModePrefs \
-                -type d \
-                -name "SleepModePrefs.bundle" \
-                -print \
-                2>/dev/null \
-                | head -n 1
-            )"
+          if [ ! -f "$MAIN_DEB" ]; then
+            echo "ERROR: Main DEB not found."
+            exit 1
           fi
 
+          if [ ! -d "$PREFS_BUNDLE" ]; then
+            echo "ERROR: SleepModePrefs.bundle not found."
+            exit 1
+          fi
+
+          echo "================================"
+          echo "EXTRACT MAIN DEB"
+          echo "================================"
+
           rm -rf /tmp/sleepmode-final
+
           mkdir -p /tmp/sleepmode-final
 
           dpkg-deb \
             -x "$MAIN_DEB" \
             /tmp/sleepmode-final
 
+          mkdir -p \
+            /tmp/sleepmode-final/DEBIAN
+
           dpkg-deb \
             -e "$MAIN_DEB" \
             /tmp/sleepmode-final/DEBIAN
+
+
+          echo ""
+          echo "================================"
+          echo "INSTALL PREFS BUNDLE"
+          echo "================================"
 
           mkdir -p \
             /tmp/sleepmode-final/Library/PreferenceBundles
 
           mkdir -p \
             /tmp/sleepmode-final/Library/PreferenceLoader/Preferences
+
+          rm -rf \
+            /tmp/sleepmode-final/Library/PreferenceBundles/SleepModePrefs.bundle
 
           cp -R \
             "$PREFS_BUNDLE" \
@@ -448,6 +596,12 @@ jobs:
             SleepModePrefs/entry.plist \
             /tmp/sleepmode-final/Library/PreferenceLoader/Preferences/SleepModePrefs.plist
 
+
+          echo ""
+          echo "================================"
+          echo "REBUILD FINAL DEB"
+          echo "================================"
+
           rm -f "$MAIN_DEB"
 
           dpkg-deb \
@@ -456,18 +610,15 @@ jobs:
             "$MAIN_DEB"
 
           echo ""
-          echo "================================"
-          echo "FINAL DEB"
-          echo "================================"
-
+          echo "Final package:"
           ls -lh "$MAIN_DEB"
 
 
       # =====================================================
-      # 16. VERIFY FINAL DEB
+      # 17. VERIFY FINAL PACKAGE
       # =====================================================
 
-      - name: Verify final package
+      - name: Verify final DEB
         working-directory: ${{ github.workspace }}
         run: |
           set -e
@@ -481,12 +632,19 @@ jobs:
               | head -n 1
           )"
 
+          if [ -z "$DEB" ]; then
+            echo "ERROR: Final DEB not found."
+            exit 1
+          fi
+
           rm -rf /tmp/sleepmode-check
+
           mkdir -p /tmp/sleepmode-check
 
           dpkg-deb \
             -x "$DEB" \
             /tmp/sleepmode-check
+
 
           echo "================================"
           echo "CHECK TWEAK"
@@ -497,25 +655,39 @@ jobs:
 
           echo "SleepMode.dylib: OK"
 
+
           echo ""
           echo "================================"
-          echo "CHECK SETTINGS"
+          echo "CHECK PREFS"
           echo "================================"
 
           PREFS="/tmp/sleepmode-check/Library/PreferenceBundles/SleepModePrefs.bundle"
 
           test -d "$PREFS"
-          test -f "$PREFS/Root.plist"
-          test -f "$PREFS/icon.png"
+
+          test -f \
+            "$PREFS/SleepModePrefs"
+
+          test -f \
+            "$PREFS/Root.plist"
+
+          test -f \
+            "$PREFS/icon.png"
 
           test -f \
             "/tmp/sleepmode-check/Library/PreferenceLoader/Preferences/SleepModePrefs.plist"
 
-          plutil -lint "$PREFS/Root.plist"
+          plutil -lint \
+            "$PREFS/Root.plist"
 
-          echo "PreferenceBundle: OK"
+          plutil -lint \
+            "/tmp/sleepmode-check/Library/PreferenceLoader/Preferences/SleepModePrefs.plist"
+
+          echo "SleepModePrefs.bundle: OK"
           echo "Root.plist: OK"
           echo "icon.png: OK"
+          echo "PreferenceLoader entry: OK"
+
 
           echo ""
           echo "================================"
@@ -527,11 +699,25 @@ jobs:
             | grep -Ei \
               "SleepModeModule|SleepModeProvider|SleepControlCenter"; then
 
-            echo "ERROR: Control Center files found."
+            echo ""
+            echo "ERROR: Control Center files are still packaged."
+
             exit 1
           fi
 
           echo "Control Center: removed"
+
+
+          echo ""
+          echo "================================"
+          echo "PACKAGE CONTENT"
+          echo "================================"
+
+          find /tmp/sleepmode-check \
+            -type f \
+            -print \
+            | sort
+
 
           echo ""
           echo "================================"
@@ -540,7 +726,7 @@ jobs:
 
 
       # =====================================================
-      # 17. UPLOAD DEB
+      # 18. UPLOAD DEB
       # =====================================================
 
       - name: Upload DEB
@@ -553,25 +739,26 @@ jobs:
 
 
       # =====================================================
-      # 18. BUILD SUMMARY
+      # 19. SUMMARY
       # =====================================================
 
       - name: Build summary
         run: |
+          echo ""
           echo "================================"
           echo "SLEEPMODE BUILD COMPLETE"
           echo "================================"
 
           echo "Branch:"
-          echo "${GITHUB_REF_NAME}"
+          echo "$GITHUB_REF_NAME"
 
           echo ""
           echo "Commit:"
-          echo "${GITHUB_SHA}"
+          echo "$GITHUB_SHA"
 
           echo ""
           echo "Artifact:"
-          echo "SleepMode-RootHide-${GITHUB_SHA}"
+          echo "SleepMode-RootHide-$GITHUB_SHA"
 
           echo ""
-          echo "Tự động build: ENABLED"
+          echo "Automatic build: ENABLED"

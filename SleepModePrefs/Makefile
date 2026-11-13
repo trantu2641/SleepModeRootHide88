@@ -8,7 +8,8 @@ include $(THEOS)/makefiles/common.mk
 BUNDLE_NAME = SleepModePrefs
 
 SleepModePrefs_FILES = \
-    SleepModePrefs.m
+    SleepModePrefs.m \
+    SleepModeTimeoutController.m
 
 SleepModePrefs_CFLAGS = \
     -fobjc-arc \
@@ -28,4 +29,3 @@ SleepModePrefs_RESOURCE_DIRS = \
     Resources
 
 include $(THEOS_MAKE_PATH)/bundle.mk
-include $(THEOS_MAKE_PATH)/package.mk

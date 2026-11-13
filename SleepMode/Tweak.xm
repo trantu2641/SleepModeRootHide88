@@ -3,23 +3,37 @@
 
 #import "SleepManager.h"
 
-#pragma mark - SpringBoard touch detection
+#pragma mark - Touch detection
 
 %hook UIApplication
 
 - (void)sendEvent:(UIEvent *)event
 {
-    // Chỉ inject trong SpringBoard theo SleepMode.plist.
-    // Không hook hay inject vào tiến trình ứng dụng người dùng.
-    if (event != nil && event.type == UIEventTypeTouches) {
-        SleepManager *manager = [SleepManager sharedInstance];
+    %orig;
 
-        if ([manager isEnabled]) {
+    /*
+     * SleepMode chỉ được inject vào SpringBoard.
+     *
+     * Vì vậy sendEvent: ở đây là event của SpringBoard:
+     *
+     * Home Screen
+     * Control Center
+     * Lock-related UI
+     * các màn hình hệ thống khác
+     *
+     * Không inject vào app người dùng.
+     */
+
+    if (event != nil &&
+        event.type == UIEventTypeTouches) {
+
+        SleepManager *manager =
+            [SleepManager sharedInstance];
+
+        if (manager.enabled) {
             [manager resetTimer];
         }
     }
-
-    %orig;
 }
 
 %end
@@ -28,16 +42,16 @@
 
 %hook SpringBoard
 
-- (void)applicationDidFinishLaunching:(UIApplication *)application
+- (void)applicationDidFinishLaunching:
+    (UIApplication *)application
 {
     %orig;
 
-    SleepManager *manager = [SleepManager sharedInstance];
+    SleepManager *manager =
+        [SleepManager sharedInstance];
 
-    if ([manager isEnabled]) {
+    if (manager.enabled) {
         [manager start];
-    } else {
-        [manager stop];
     }
 }
 

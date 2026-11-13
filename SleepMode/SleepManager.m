@@ -18,21 +18,7 @@ static NSString * const kSleepModeTimeoutKey =
 static NSString * const kSleepModeChangedNotification =
     @"com.trantu.sleepmode.settingsChanged";
 
-static NSString * const kSleepModeTouchNotification =
-    @"com.trantu.sleepmode.touch";
-
-
-#pragma mark - Forward declarations
-
 static void SMSettingsChangedCallback(
-    CFNotificationCenterRef center,
-    void *observer,
-    CFStringRef name,
-    const void *object,
-    CFDictionaryRef userInfo
-);
-
-static void SMTouchCallback(
     CFNotificationCenterRef center,
     void *observer,
     CFStringRef name,
@@ -49,11 +35,15 @@ static void SMTouchCallback(
     NSTimer *_timer;
     BOOL _started;
 }
+
+- (void)loadPreferences;
+- (NSTimeInterval)currentTimeout;
+- (void)handleSettingsChanged;
+
 @end
 
 
 @implementation SleepManager
-
 
 #pragma mark - Singleton
 
@@ -77,39 +67,28 @@ static void SMTouchCallback(
     self = [super init];
 
     if (self) {
-
+        /*
+         * Giữ mặc định 15 giây như bản 1.3.0.
+         * Trạng thái bật/tắt mặc định đồng bộ với Settings mới.
+         */
         _enabled = YES;
-        _timeout = 300.0;
+        _timeout = 15.0;
         _timer = nil;
         _started = NO;
 
-        /*
-         * Đọc giá trị hiện tại từ Settings.
-         */
         [self loadPreferences];
 
         /*
-         * Settings thay đổi.
+         * Settings chạy trong tiến trình riêng nên dùng Darwin
+         * notification để báo SpringBoard đọc lại thiết lập.
+         * Touch không đi qua notification này; touch gọi resetTimer
+         * trực tiếp trong Tweak.xm như bản hoạt động 1.3.0.
          */
         CFNotificationCenterAddObserver(
             CFNotificationCenterGetDarwinNotifyCenter(),
             (__bridge const void *)(self),
             SMSettingsChangedCallback,
-            (__bridge CFStringRef)
-                kSleepModeChangedNotification,
-            NULL,
-            CFNotificationSuspensionBehaviorDeliverImmediately
-        );
-
-        /*
-         * Có thao tác cảm ứng.
-         */
-        CFNotificationCenterAddObserver(
-            CFNotificationCenterGetDarwinNotifyCenter(),
-            (__bridge const void *)(self),
-            SMTouchCallback,
-            (__bridge CFStringRef)
-                kSleepModeTouchNotification,
+            (__bridge CFStringRef)kSleepModeChangedNotification,
             NULL,
             CFNotificationSuspensionBehaviorDeliverImmediately
         );
@@ -129,16 +108,7 @@ static void SMTouchCallback(
     CFNotificationCenterRemoveObserver(
         CFNotificationCenterGetDarwinNotifyCenter(),
         (__bridge const void *)(self),
-        (__bridge CFStringRef)
-            kSleepModeChangedNotification,
-        NULL
-    );
-
-    CFNotificationCenterRemoveObserver(
-        CFNotificationCenterGetDarwinNotifyCenter(),
-        (__bridge const void *)(self),
-        (__bridge CFStringRef)
-            kSleepModeTouchNotification,
+        (__bridge CFStringRef)kSleepModeChangedNotification,
         NULL
     );
 }
@@ -148,52 +118,39 @@ static void SMTouchCallback(
 
 - (void)loadPreferences
 {
+    /*
+     * Settings bundle và SpringBoard phải đọc cùng một domain.
+     * SleepModePrefs ghi vào suite com.trantu.sleepmode.
+     */
     NSUserDefaults *defaults =
-        [[NSUserDefaults alloc]
-            initWithSuiteName:kSleepModeDomain];
+        [[NSUserDefaults alloc] initWithSuiteName:kSleepModeDomain];
 
     if (defaults == nil) {
+        _enabled = YES;
+        _timeout = 15.0;
         return;
     }
 
-
-    /*
-     * Enabled
-     */
     id enabledValue =
         [defaults objectForKey:kSleepModeEnabledKey];
 
-    if (enabledValue != nil) {
+    _enabled = (enabledValue != nil)
+        ? [enabledValue boolValue]
+        : YES;
 
-        _enabled =
-            [enabledValue boolValue];
-
-    } else {
-
-        _enabled = YES;
-    }
-
-
-    /*
-     * Timeout
-     */
     id timeoutValue =
         [defaults objectForKey:kSleepModeTimeoutKey];
 
     if (timeoutValue != nil) {
+        NSTimeInterval timeout = [timeoutValue doubleValue];
 
-        NSTimeInterval timeout =
-            [timeoutValue doubleValue];
-
-        if (timeout >= 15.0 &&
-            timeout <= 7200.0) {
-
+        if (timeout >= 15.0 && timeout <= 7200.0) {
             _timeout = timeout;
+        } else {
+            _timeout = 15.0;
         }
-
     } else {
-
-        _timeout = 300.0;
+        _timeout = 15.0;
     }
 }
 
@@ -201,27 +158,22 @@ static void SMTouchCallback(
 - (NSTimeInterval)currentTimeout
 {
     NSUserDefaults *defaults =
-        [[NSUserDefaults alloc]
-            initWithSuiteName:kSleepModeDomain];
+        [[NSUserDefaults alloc] initWithSuiteName:kSleepModeDomain];
 
     if (defaults == nil) {
-        return 300.0;
+        return 15.0;
     }
 
-    id value =
-        [defaults objectForKey:kSleepModeTimeoutKey];
+    id value = [defaults objectForKey:kSleepModeTimeoutKey];
 
     if (value == nil) {
-        return 300.0;
+        return 15.0;
     }
 
-    NSTimeInterval timeout =
-        [value doubleValue];
+    NSTimeInterval timeout = [value doubleValue];
 
-    if (timeout < 15.0 ||
-        timeout > 7200.0) {
-
-        return 300.0;
+    if (timeout < 15.0 || timeout > 7200.0) {
+        return 15.0;
     }
 
     return timeout;
@@ -241,24 +193,16 @@ static void SMTouchCallback(
     _enabled = enabled;
 
     NSUserDefaults *defaults =
-        [[NSUserDefaults alloc]
-            initWithSuiteName:kSleepModeDomain];
+        [[NSUserDefaults alloc] initWithSuiteName:kSleepModeDomain];
 
     if (defaults != nil) {
-
-        [defaults setBool:enabled
-                   forKey:kSleepModeEnabledKey];
-
+        [defaults setBool:enabled forKey:kSleepModeEnabledKey];
         [defaults synchronize];
     }
 
-
     if (enabled) {
-
         [self start];
-
     } else {
-
         [self stop];
     }
 }
@@ -284,24 +228,16 @@ static void SMTouchCallback(
 
     _timeout = timeout;
 
-
     NSUserDefaults *defaults =
-        [[NSUserDefaults alloc]
-            initWithSuiteName:kSleepModeDomain];
+        [[NSUserDefaults alloc] initWithSuiteName:kSleepModeDomain];
 
     if (defaults != nil) {
-
-        [defaults setDouble:timeout
-                     forKey:kSleepModeTimeoutKey];
-
+        [defaults setDouble:timeout forKey:kSleepModeTimeoutKey];
         [defaults synchronize];
     }
 
-
-    if (_started &&
-        _enabled) {
-
-        [self resetTimer];
+    if (_enabled && _started) {
+        [self start];
     }
 }
 
@@ -314,9 +250,39 @@ static void SMTouchCallback(
         return;
     }
 
-    _started = YES;
+    /*
+     * Cơ chế timer giống bản 1.3.0:
+     * hủy NSTimer cũ, tạo NSTimer một lần và đăng ký vào
+     * NSRunLoopCommonModes để timer tiếp tục chạy trong SpringBoard.
+     */
+    if (_timer != nil) {
+        [_timer invalidate];
+        _timer = nil;
+    }
 
-    [self resetTimer];
+    NSTimeInterval timeout = [self currentTimeout];
+
+    if (timeout < 15.0 || timeout > 7200.0) {
+        timeout = 15.0;
+    }
+
+    _timeout = timeout;
+
+    _timer = [NSTimer timerWithTimeInterval:timeout
+                                    target:self
+                                  selector:@selector(timerFired:)
+                                  userInfo:nil
+                                   repeats:NO];
+
+    if (_timer == nil) {
+        _started = NO;
+        return;
+    }
+
+    [[NSRunLoop mainRunLoop] addTimer:_timer
+                             forMode:NSRunLoopCommonModes];
+
+    _started = YES;
 }
 
 
@@ -327,7 +293,6 @@ static void SMTouchCallback(
     _started = NO;
 
     if (_timer != nil) {
-
         [_timer invalidate];
         _timer = nil;
     }
@@ -342,62 +307,8 @@ static void SMTouchCallback(
         return;
     }
 
-    if (!_started) {
-        return;
-    }
-
-
-    /*
-     * Hủy timer cũ.
-     */
-    if (_timer != nil) {
-
-        [_timer invalidate];
-        _timer = nil;
-    }
-
-
-    /*
-     * Đọc timeout trực tiếp từ Settings.
-     */
-    NSTimeInterval timeout =
-        [self currentTimeout];
-
-
-    if (timeout < 15.0) {
-        timeout = 15.0;
-    }
-
-    if (timeout > 7200.0) {
-        timeout = 7200.0;
-    }
-
-
-    _timeout = timeout;
-
-
-    /*
-     * NSTimer giống cơ chế của bản đang chạy ổn.
-     */
-    _timer =
-        [NSTimer timerWithTimeInterval:timeout
-                                target:self
-                              selector:@selector(timerFired:)
-                              userInfo:nil
-                               repeats:NO];
-
-    if (_timer == nil) {
-        return;
-    }
-
-
-    /*
-     * CommonModes để timer không chết khi
-     * SpringBoard chuyển run-loop mode.
-     */
-    [[NSRunLoop mainRunLoop]
-        addTimer:_timer
-        forMode:NSRunLoopCommonModes];
+    /* Đúng hành vi bản cũ: touch gọi lại start để đặt lại bộ đếm. */
+    [self start];
 }
 
 
@@ -405,429 +316,10 @@ static void SMTouchCallback(
 
 - (void)timerFired:(NSTimer *)timer
 {
-    if (!_enabled) {
-        return;
-    }
-
-    if (!_started) {
+    if (!_enabled || !_started) {
         return;
     }
 
     _timer = nil;
 
-
-    /*
-     * Giữ nguyên cơ chế đóng app.
-     */
-    [self terminateUserApps];
-
-
-    /*
-     * Khóa máy sau 0.15 giây.
-     */
-    dispatch_after(
-        dispatch_time(
-            DISPATCH_TIME_NOW,
-            (int64_t)(0.15 * NSEC_PER_SEC)
-        ),
-        dispatch_get_main_queue(),
-        ^{
-            @autoreleasepool {
-
-                if (!self->_enabled ||
-                    !self->_started) {
-
-                    return;
-                }
-
-                [self lockDevice];
-            }
-        }
-    );
-}
-
-
-#pragma mark - Settings Changed
-
-- (void)handleSettingsChanged
-{
-    dispatch_async(
-        dispatch_get_main_queue(),
-        ^{
-            @autoreleasepool {
-
-                /*
-                 * Đọc lại cả Enabled và Timeout.
-                 */
-                [self loadPreferences];
-
-
-                /*
-                 * Áp dụng ngay.
-                 */
-                if (self->_enabled) {
-
-                    [self start];
-
-                } else {
-
-                    [self stop];
-                }
-            }
-        }
-    );
-}
-
-
-#pragma mark - Touch
-
-- (void)handleTouch
-{
-    dispatch_async(
-        dispatch_get_main_queue(),
-        ^{
-            @autoreleasepool {
-
-                /*
-                 * Chỉ reset timer.
-                 *
-                 * Không đụng UIEvent.
-                 * Không đụng UIApplication.
-                 * Không gọi bất kỳ API UI nào khác.
-                 */
-                if (self->_enabled &&
-                    self->_started) {
-
-                    [self resetTimer];
-                }
-            }
-        }
-    );
-}
-
-
-#pragma mark - Lock Device
-
-- (void)lockDevice
-{
-    @autoreleasepool {
-
-        Class SBBackBoardController =
-            objc_getClass(
-                "SBBackBoardController"
-            );
-
-        if (SBBackBoardController != Nil) {
-
-            SEL sharedSelector =
-                NSSelectorFromString(
-                    @"sharedInstance"
-                );
-
-            if ([SBBackBoardController
-                    respondsToSelector:
-                        sharedSelector]) {
-
-                id controller =
-                    ((id (*)(id, SEL))
-                        objc_msgSend)(
-                            SBBackBoardController,
-                            sharedSelector
-                        );
-
-                SEL lockSelector =
-                    NSSelectorFromString(
-                        @"lockScreen"
-                    );
-
-                if ([controller
-                        respondsToSelector:
-                            lockSelector]) {
-
-                    ((void (*)(id, SEL))
-                        objc_msgSend)(
-                            controller,
-                            lockSelector
-                        );
-
-                    return;
-                }
-            }
-        }
-
-
-        /*
-         * Fallback.
-         */
-        UIApplication *application =
-            [UIApplication sharedApplication];
-
-        SEL fallbackSelector =
-            NSSelectorFromString(
-                @"_lockScreen"
-            );
-
-        if ([application
-                respondsToSelector:
-                    fallbackSelector]) {
-
-            ((void (*)(id, SEL))
-                objc_msgSend)(
-                    application,
-                    fallbackSelector
-                );
-        }
-    }
-}
-
-
-#pragma mark - Terminate User Apps
-
-- (void)terminateUserApps
-{
-    @autoreleasepool {
-
-        Class SBApplicationController =
-            objc_getClass(
-                "SBApplicationController"
-            );
-
-        if (SBApplicationController == Nil) {
-            return;
-        }
-
-
-        SEL sharedSelector =
-            NSSelectorFromString(
-                @"sharedInstance"
-            );
-
-        if (![SBApplicationController
-                respondsToSelector:
-                    sharedSelector]) {
-
-            return;
-        }
-
-
-        id appController =
-            ((id (*)(id, SEL))
-                objc_msgSend)(
-                    SBApplicationController,
-                    sharedSelector
-                );
-
-        if (appController == nil) {
-            return;
-        }
-
-
-        SEL applicationsSelector =
-            NSSelectorFromString(
-                @"applications"
-            );
-
-        if (![appController
-                respondsToSelector:
-                    applicationsSelector]) {
-
-            return;
-        }
-
-
-        id applications =
-            ((id (*)(id, SEL))
-                objc_msgSend)(
-                    appController,
-                    applicationsSelector
-                );
-
-        if (![applications
-                isKindOfClass:
-                    [NSArray class]]) {
-
-            return;
-        }
-
-
-        Class FBSystemService =
-            objc_getClass(
-                "FBSystemService"
-            );
-
-        if (FBSystemService == Nil) {
-            return;
-        }
-
-
-        SEL fbSharedSelector =
-            NSSelectorFromString(
-                @"sharedInstance"
-            );
-
-        if (![FBSystemService
-                respondsToSelector:
-                    fbSharedSelector]) {
-
-            return;
-        }
-
-
-        id service =
-            ((id (*)(id, SEL))
-                objc_msgSend)(
-                    FBSystemService,
-                    fbSharedSelector
-                );
-
-        if (service == nil) {
-            return;
-        }
-
-
-        SEL terminateSelector =
-            NSSelectorFromString(
-                @"terminateApplication:forReason:andReport:"
-            );
-
-        if (![service
-                respondsToSelector:
-                    terminateSelector]) {
-
-            return;
-        }
-
-
-        for (id application in applications) {
-
-            @autoreleasepool {
-
-                SEL bundleIdentifierSelector =
-                    NSSelectorFromString(
-                        @"bundleIdentifier"
-                    );
-
-                if (![application
-                        respondsToSelector:
-                            bundleIdentifierSelector]) {
-
-                    continue;
-                }
-
-
-                NSString *bundleIdentifier =
-                    ((id (*)(id, SEL))
-                        objc_msgSend)(
-                            application,
-                            bundleIdentifierSelector
-                        );
-
-                if (bundleIdentifier.length == 0) {
-                    continue;
-                }
-
-
-                /*
-                 * Không đóng SpringBoard.
-                 */
-                if ([bundleIdentifier
-                        isEqualToString:
-                            @"com.apple.springboard"]) {
-
-                    continue;
-                }
-
-
-                /*
-                 * Không đóng Settings.
-                 */
-                if ([bundleIdentifier
-                        isEqualToString:
-                            @"com.apple.Preferences"]) {
-
-                    continue;
-                }
-
-
-                /*
-                 * Không đóng SafariViewService.
-                 */
-                if ([bundleIdentifier
-                        hasPrefix:
-                            @"com.apple.SafariViewService"]) {
-
-                    continue;
-                }
-
-
-                /*
-                 * Không đóng WebKit.
-                 */
-                if ([bundleIdentifier
-                        hasPrefix:
-                            @"com.apple.WebKit"]) {
-
-                    continue;
-                }
-
-
-                ((void (*)(id, SEL, id, int, BOOL))
-                    objc_msgSend)(
-                        service,
-                        terminateSelector,
-                        application,
-                        5,
-                        NO
-                    );
-            }
-        }
-    }
-}
-
-@end
-
-
-#pragma mark - Darwin Callbacks
-
-static void SMSettingsChangedCallback(
-    CFNotificationCenterRef center,
-    void *observer,
-    CFStringRef name,
-    const void *object,
-    CFDictionaryRef userInfo
-)
-{
-    @autoreleasepool {
-
-        SleepManager *manager =
-            (__bridge SleepManager *)observer;
-
-        if (manager == nil) {
-            return;
-        }
-
-        [manager handleSettingsChanged];
-    }
-}
-
-
-static void SMTouchCallback(
-    CFNotificationCenterRef center,
-    void *observer,
-    CFStringRef name,
-    const void *object,
-    CFDictionaryRef userInfo
-)
-{
-    @autoreleasepool {
-
-        SleepManager *manager =
-            (__bridge SleepManager *)observer;
-
-        if (manager == nil) {
-            return;
-        }
-
-        [manager handleTouch];
-    }
-}
+    /* Giữ nguyên cơ chế đóng ứng dụng hiện tại. */

@@ -11,17 +11,15 @@
 - (instancetype)init
 {
     self = [super init];
-
     if (self) {
         self.title = @"SleepMode";
     }
-
     return self;
 }
 
 - (NSArray *)specifiers
 {
-    if (!_specifiers) {
+    if (_specifiers == nil) {
         _specifiers = [self loadSpecifiersFromPlistName:@"Root"
                                                  target:self];
     }
@@ -32,7 +30,6 @@
 - (void)viewDidLoad
 {
     [super viewDidLoad];
-
     self.title = @"SleepMode";
 }
 

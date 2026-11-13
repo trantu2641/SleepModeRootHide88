@@ -4,16 +4,14 @@
 #import <Preferences/PSSpecifier.h>
 #import <CoreFoundation/CoreFoundation.h>
 
+#import "SleepModeTimeoutController.h"
+
 
 static NSString * const kSleepModeDomain =
     @"com.trantu.sleepmode";
 
 static NSString * const kSleepModeChangedNotification =
     @"com.trantu.sleepmode.settingsChanged";
-
-
-@interface SleepModeTimeoutController : PSListController
-@end
 
 
 @implementation SleepModeTimeoutController
@@ -41,10 +39,6 @@ static NSString * const kSleepModeChangedNotification =
             [NSMutableArray array];
 
 
-        // ==========================================
-        // GROUP
-        // ==========================================
-
         PSSpecifier *group =
             [PSSpecifier groupSpecifierWithName:@"THỜI GIAN"];
 
@@ -55,130 +49,49 @@ static NSString * const kSleepModeChangedNotification =
         [items addObject:group];
 
 
-        // ==========================================
-        // 1 PHÚT
-        // ==========================================
+        NSArray *titles = @[
+            @"1 phút",
+            @"5 phút",
+            @"15 phút",
+            @"30 phút",
+            @"1 giờ",
+            @"2 giờ"
+        ];
 
-        PSSpecifier *oneMinute =
-            [PSSpecifier preferenceSpecifierNamed:
-                @"1 phút"
-                target:self
-                set:nil
-                get:nil
-                detail:nil
-                cell:PSLinkCell
-                edit:nil];
-
-        [oneMinute setProperty:
-            @60
-            forKey:@"timeoutValue"];
-
-        [items addObject:oneMinute];
-
-
-        // ==========================================
-        // 5 PHÚT
-        // ==========================================
-
-        PSSpecifier *fiveMinutes =
-            [PSSpecifier preferenceSpecifierNamed:
-                @"5 phút"
-                target:self
-                set:nil
-                get:nil
-                detail:nil
-                cell:PSLinkCell
-                edit:nil];
-
-        [fiveMinutes setProperty:
-            @300
-            forKey:@"timeoutValue"];
-
-        [items addObject:fiveMinutes];
-
-
-        // ==========================================
-        // 15 PHÚT
-        // ==========================================
-
-        PSSpecifier *fifteenMinutes =
-            [PSSpecifier preferenceSpecifierNamed:
-                @"15 phút"
-                target:self
-                set:nil
-                get:nil
-                detail:nil
-                cell:PSLinkCell
-                edit:nil];
-
-        [fifteenMinutes setProperty:
-            @900
-            forKey:@"timeoutValue"];
-
-        [items addObject:fifteenMinutes];
-
-
-        // ==========================================
-        // 30 PHÚT
-        // ==========================================
-
-        PSSpecifier *thirtyMinutes =
-            [PSSpecifier preferenceSpecifierNamed:
-                @"30 phút"
-                target:self
-                set:nil
-                get:nil
-                detail:nil
-                cell:PSLinkCell
-                edit:nil];
-
-        [thirtyMinutes setProperty:
-            @1800
-            forKey:@"timeoutValue"];
-
-        [items addObject:thirtyMinutes];
-
-
-        // ==========================================
-        // 1 GIỜ
-        // ==========================================
-
-        PSSpecifier *oneHour =
-            [PSSpecifier preferenceSpecifierNamed:
-                @"1 giờ"
-                target:self
-                set:nil
-                get:nil
-                detail:nil
-                cell:PSLinkCell
-                edit:nil];
-
-        [oneHour setProperty:
-            @3600
-            forKey:@"timeoutValue"];
-
-        [items addObject:oneHour];
-
-
-        // ==========================================
-        // 2 GIỜ
-        // ==========================================
-
-        PSSpecifier *twoHours =
-            [PSSpecifier preferenceSpecifierNamed:
-                @"2 giờ"
-                target:self
-                set:nil
-                get:nil
-                detail:nil
-                cell:PSLinkCell
-                edit:nil];
-
-        [twoHours setProperty:
+        NSArray *values = @[
+            @60,
+            @300,
+            @900,
+            @1800,
+            @3600,
             @7200
-            forKey:@"timeoutValue"];
+        ];
 
-        [items addObject:twoHours];
+
+        for (NSUInteger i = 0;
+             i < titles.count;
+             i++) {
+
+            PSSpecifier *item =
+                [PSSpecifier preferenceSpecifierNamed:
+                    titles[i]
+                    target:self
+                    set:nil
+                    get:nil
+                    detail:nil
+                    cell:PSLinkCell
+                    edit:nil];
+
+            [item setProperty:
+                @YES
+                forKey:@"enabled"];
+
+            [item setProperty:
+                values[i]
+                forKey:@"timeoutValue"];
+
+            [items addObject:item];
+        }
 
 
         _specifiers =
@@ -283,6 +196,7 @@ static NSString * const kSleepModeChangedNotification =
 
         return;
     }
+
 
     [super tableView:tableView
         didSelectRowAtIndexPath:indexPath];

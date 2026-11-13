@@ -26,8 +26,7 @@ static NSString * const kTimeoutKey =
     self = [super init];
 
     if (self) {
-        self.title =
-            @"Tự động khóa sau";
+        self.title = @"Tự động khóa sau";
     }
 
     return self;
@@ -128,11 +127,20 @@ static NSString * const kTimeoutKey =
             kPrefsPath];
 
 
+    if (![settings isKindOfClass:
+            [NSDictionary class]]) {
+
+        return 15;
+    }
+
+
     NSNumber *value =
         settings[kTimeoutKey];
 
 
-    if (value == nil) {
+    if (![value isKindOfClass:
+            [NSNumber class]]) {
+
         return 15;
     }
 
@@ -213,14 +221,22 @@ static NSString * const kTimeoutKey =
 
     if (timeout != nil) {
 
-        NSMutableDictionary *settings =
-            [[[NSDictionary dictionaryWithContentsOfFile:
-                kPrefsPath]
-                ?: @{}]
-                mutableCopy];
+        NSDictionary *oldSettings =
+            [NSDictionary dictionaryWithContentsOfFile:
+                kPrefsPath];
 
 
-        if (settings == nil) {
+        NSMutableDictionary *settings;
+
+
+        if ([oldSettings isKindOfClass:
+                [NSDictionary class]]) {
+
+            settings =
+                [oldSettings mutableCopy];
+
+        } else {
+
             settings =
                 [NSMutableDictionary dictionary];
         }
@@ -230,9 +246,17 @@ static NSString * const kTimeoutKey =
             timeout;
 
 
-        [settings writeToFile:
-            kPrefsPath
-            atomically:YES];
+        BOOL written =
+            [settings writeToFile:
+                kPrefsPath
+                atomically:YES];
+
+
+        NSLog(
+            @"[SleepModePrefs] Timeout saved: %@ (%d)",
+            timeout,
+            written
+        );
 
 
         /*
